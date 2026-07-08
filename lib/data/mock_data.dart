@@ -233,6 +233,13 @@ class FamilleInfo {
   /// avant leur migration en Session C.
   String get usagerNom =>
       mockUsagersCatalogue.firstWhere((u) => u.id == usagerId).prenom;
+
+  /// Chantier 0 / Session C2a — nom complet de l'usager rattaché, dérivé de
+  /// [usagerId]. Utilisé par [familleUidPourUsager] en plus de [usagerNom]
+  /// pour que la résolution par lien famille fonctionne aussi bien à partir
+  /// d'un prénom seul que d'un nom complet.
+  String get usagerNomComplet =>
+      mockUsagersCatalogue.firstWhere((u) => u.id == usagerId).nomComplet;
 }
 
 // Donnée factice : uid -> famille + usager rattaché, pour afficher qui a
@@ -256,11 +263,31 @@ const mockFamilleConnecteeUid = 'fam_dubois';
 final _toutesLesFamilles = mockFamilles.keys.toList();
 
 /// Retrouve l'uid de la famille rattachée à un usager, à partir de son
-/// prénom. Utilisé pour résoudre les destinataires d'un document/message
-/// "individuel" ou "groupe" créé depuis le formulaire d'envoi.
+/// prénom OU de son nom complet (Chantier 0 / Session C2a — élargi pour que
+/// les écrans affichant le nom complet dans un sélecteur continuent de
+/// résoudre correctement, y compris pour un homonyme comme "Emma Bernard" :
+/// la comparaison reste circonscrite aux 8 usagers réellement rattachés à
+/// une famille, donc jamais ambiguë, contrairement à une recherche dans tout
+/// le catalogue). Utilisé pour résoudre les destinataires d'un
+/// document/message "individuel" ou "groupe" créé depuis le formulaire
+/// d'envoi.
 String? familleUidPourUsager(String usagerNom) {
   for (final entry in mockFamilles.entries) {
-    if (entry.value.usagerNom == usagerNom) return entry.key;
+    if (entry.value.usagerNom == usagerNom || entry.value.usagerNomComplet == usagerNom) {
+      return entry.key;
+    }
+  }
+  return null;
+}
+
+/// Chantier 0 / Session C2a — équivalent de [familleUidPourUsager] mais par
+/// id stable plutôt que par prénom. À préférer dès qu'un id est disponible
+/// (ex: `VisibiliteSelection.usagerConcerneId`) : contrairement à la
+/// comparaison de prénoms, celle-ci ne peut pas se tromper d'usager en cas
+/// d'homonyme.
+String? familleUidPourUsagerId(String usagerId) {
+  for (final entry in mockFamilles.entries) {
+    if (entry.value.usagerId == usagerId) return entry.key;
   }
   return null;
 }
@@ -344,9 +371,21 @@ const mockUsagersCatalogue = [
 // Explorateurs']`.
 final mockUnitesAvecFamilles = mockUnitesFamillesCatalogue.map((u) => u.nom).toList();
 
-/// Prénoms des usagers ayant une famille rattachée (mock), utilisés comme
-/// liste d'usagers sélectionnables dans les écrans Documents/Messages.
+/// Prénoms des usagers ayant une famille rattachée (mock). Conservée pour
+/// compatibilité ascendante ; les écrans Documents/Messages utilisent
+/// désormais [mockUsagersAvecFamillesNomComplet] pour l'affichage (Session
+/// C2a — uniformisation avec le sélecteur d'Agenda/Publications).
 final mockUsagersAvecFamilles = mockFamilles.values.map((f) => f.usagerNom).toList();
+
+/// Chantier 0 / Session C2a — noms complets (prénom + nom) des usagers ayant
+/// une famille rattachée, même ordre que [mockUsagersAvecFamilles]. Affiché
+/// dans le sélecteur d'usager d'envoyer_document_screen.dart/
+/// envoyer_message_screen.dart pour éviter toute confusion entre usagers de
+/// prénom identique (voir usager_017/usager_032, "Emma Bernard") — la
+/// résolution vers l'id reste correcte grâce à `familleUidPourUsager`, qui
+/// compare maintenant sur le prénom ET le nom complet.
+final mockUsagersAvecFamillesNomComplet =
+    mockFamilles.values.map((f) => f.usagerNomComplet).toList();
 
 class UsagerUnite {
   const UsagerUnite({
@@ -363,8 +402,11 @@ class UsagerUnite {
 }
 
 class UniteAvecUsagers {
-  const UniteAvecUsagers({required this.nom, required this.usagers});
+  const UniteAvecUsagers({required this.id, required this.nom, required this.usagers});
 
+  /// Chantier 0 / Session C2a — id stable (`mockUnitesFamillesCatalogue`),
+  /// à utiliser pour identifier/naviguer plutôt que sur [nom].
+  final String id;
   final String nom;
   final List<UsagerUnite> usagers;
 }
@@ -388,7 +430,7 @@ final mockUnitesAvecUsagers = mockUnitesFamillesCatalogue.map((unite) {
             avatarColor: usager.avatarColor,
           ))
       .toList();
-  return UniteAvecUsagers(nom: unite.nom, usagers: usagers);
+  return UniteAvecUsagers(id: unite.id, nom: unite.nom, usagers: usagers);
 }).toList();
 
 // -----------------------------------------------------------------------

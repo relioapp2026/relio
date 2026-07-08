@@ -12,12 +12,12 @@ import '../widgets/visibilite_selector.dart';
 List<String> _resolveDestinataires(VisibiliteSelection selection) {
   switch (selection.type) {
     case VisibiliteType.individuelle:
-      final usager = selection.usagerId;
-      if (usager == null) return const [];
-      final uid = familleUidPourUsager(usager);
+      final usagerId = selection.usagerConcerneId;
+      if (usagerId == null) return const [];
+      final uid = familleUidPourUsagerId(usagerId);
       return uid == null ? const [] : [uid];
     case VisibiliteType.groupe:
-      return selection.usagersPresentsIds.map(familleUidPourUsager).whereType<String>().toList();
+      return selection.usagersPresentsConcernesIds.map(familleUidPourUsagerId).whereType<String>().toList();
     case VisibiliteType.etablissement:
       return mockFamilles.keys.toList();
   }
@@ -47,11 +47,11 @@ class _EnvoyerMessageScreenState extends State<EnvoyerMessageScreen> {
   }
 
   void _handleEnvoyer() {
-    if (_visibilite.type == VisibiliteType.individuelle && _visibilite.usagerId == null) {
+    if (_visibilite.type == VisibiliteType.individuelle && _visibilite.usagerConcerneId == null) {
       _showError('Merci de sélectionner un usager');
       return;
     }
-    if (_visibilite.type == VisibiliteType.groupe && _visibilite.uniteId == null) {
+    if (_visibilite.type == VisibiliteType.groupe && _visibilite.uniteConcerneeId == null) {
       _showError('Merci de sélectionner une unité');
       return;
     }
@@ -76,6 +76,11 @@ class _EnvoyerMessageScreenState extends State<EnvoyerMessageScreen> {
             ? [_visibilite.usagerId!]
             : const [],
         uniteId: _visibilite.type == VisibiliteType.groupe ? _visibilite.uniteId : null,
+        usagersConcernesIds:
+            _visibilite.type == VisibiliteType.individuelle && _visibilite.usagerConcerneId != null
+                ? [_visibilite.usagerConcerneId!]
+                : const [],
+        uniteConcerneeId: _visibilite.type == VisibiliteType.groupe ? _visibilite.uniteConcerneeId : null,
         expediteurId: mockProConnecteUid,
         expediteurNom: mockProConnecteNom,
         dateEnvoi: DateTime.now(),
@@ -110,7 +115,7 @@ class _EnvoyerMessageScreenState extends State<EnvoyerMessageScreen> {
                       children: [
                         VisibiliteSelector(
                           typeLabel: 'Portée du message',
-                          mockUsagers: mockUsagersAvecFamilles,
+                          mockUsagers: mockUsagersAvecFamillesNomComplet,
                           mockUnites: mockUnitesAvecFamilles,
                           onChanged: (value) => setState(() => _visibilite = value),
                         ),

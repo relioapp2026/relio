@@ -44,6 +44,12 @@ class _CreatePublicationScreenState extends State<CreatePublicationScreen> {
     setState(() => _photos.removeAt(index));
   }
 
+  // Chantier 0 / Session C2a — cet écran ne construit pas encore de
+  // Publication réelle (pas de modèle branché ici, voir Session C2b). La
+  // validation reste sur les champs noms de VisibiliteSelection pour ne rien
+  // changer au comportement actuel. Quand cet écran sera câblé, utiliser les
+  // champs id (usagerConcerneId / uniteConcerneeId /
+  // usagersPresentsConcernesIds) pour construire la Publication.
   void _handlePublish() {
     if (_visibilite.type == VisibiliteType.individuelle && _visibilite.usagerId == null) {
       ScaffoldMessenger.of(context).showSnackBar(

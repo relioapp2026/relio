@@ -16,12 +16,12 @@ import '../widgets/visibilite_selector.dart';
 List<String> _resolveDestinataires(VisibiliteSelection selection) {
   switch (selection.type) {
     case VisibiliteType.individuelle:
-      final usager = selection.usagerId;
-      if (usager == null) return const [];
-      final uid = familleUidPourUsager(usager);
+      final usagerId = selection.usagerConcerneId;
+      if (usagerId == null) return const [];
+      final uid = familleUidPourUsagerId(usagerId);
       return uid == null ? const [] : [uid];
     case VisibiliteType.groupe:
-      return selection.usagersPresentsIds.map(familleUidPourUsager).whereType<String>().toList();
+      return selection.usagersPresentsConcernesIds.map(familleUidPourUsagerId).whereType<String>().toList();
     case VisibiliteType.etablissement:
       return mockFamilles.keys.toList();
   }
@@ -81,11 +81,11 @@ class _EnvoyerDocumentScreenState extends State<EnvoyerDocumentScreen> {
   }
 
   void _handleEnvoyer() {
-    if (_visibilite.type == VisibiliteType.individuelle && _visibilite.usagerId == null) {
+    if (_visibilite.type == VisibiliteType.individuelle && _visibilite.usagerConcerneId == null) {
       _showError('Merci de sélectionner un usager');
       return;
     }
-    if (_visibilite.type == VisibiliteType.groupe && _visibilite.uniteId == null) {
+    if (_visibilite.type == VisibiliteType.groupe && _visibilite.uniteConcerneeId == null) {
       _showError('Merci de sélectionner une unité');
       return;
     }
@@ -114,6 +114,8 @@ class _EnvoyerDocumentScreenState extends State<EnvoyerDocumentScreen> {
         portee: _visibilite.type,
         usagerNom: _visibilite.type == VisibiliteType.individuelle ? _visibilite.usagerId : null,
         uniteNom: _visibilite.type == VisibiliteType.groupe ? _visibilite.uniteId : null,
+        usagerId: _visibilite.type == VisibiliteType.individuelle ? _visibilite.usagerConcerneId : null,
+        uniteId: _visibilite.type == VisibiliteType.groupe ? _visibilite.uniteConcerneeId : null,
         envoyePar: mockProConnecteUid,
         envoyeParNom: mockProConnecteNom,
         dateEnvoi: DateTime.now(),
@@ -154,7 +156,7 @@ class _EnvoyerDocumentScreenState extends State<EnvoyerDocumentScreen> {
                       children: [
                         VisibiliteSelector(
                           typeLabel: 'Portée du document',
-                          mockUsagers: mockUsagersAvecFamilles,
+                          mockUsagers: mockUsagersAvecFamillesNomComplet,
                           mockUnites: mockUnitesAvecFamilles,
                           onChanged: (value) => setState(() => _visibilite = value),
                         ),

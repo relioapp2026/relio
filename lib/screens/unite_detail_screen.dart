@@ -14,6 +14,10 @@ String _initials(String prenom, String nom) {
 class UniteDetailScreen extends StatelessWidget {
   const UniteDetailScreen({super.key, required this.unite});
 
+  /// Chantier 0 / Session C2a — `unite.id` (ajouté sur [UniteAvecUsagers])
+  /// est désormais disponible pour identifier l'unité (navigation, actions
+  /// futures) plutôt que de comparer sur `unite.nom`. Pas encore utilisé
+  /// dans cet écran, purement en lecture aujourd'hui.
   final UniteAvecUsagers unite;
 
   @override

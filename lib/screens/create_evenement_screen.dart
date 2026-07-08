@@ -85,6 +85,16 @@ class _CreateEvenementScreenState extends State<CreateEvenementScreen> {
     return '${h}h$m';
   }
 
+  // Chantier 0 / Session C2a — cet écran ne construit pas encore d'objet
+  // Evenement réel (juste une validation + un SnackBar "à brancher sur
+  // Firestore"). La validation ci-dessous reste volontairement basée sur les
+  // champs noms de VisibiliteSelection (usagerId/uniteId/usagersPresentsIds)
+  // pour ne rien changer au comportement actuel — y compris pour un nom
+  // ambigu comme "Emma Bernard" (monde Agenda), qui reste sélectionnable ici
+  // même si sa résolution en id échoue. Quand cet écran sera réellement
+  // câblé (Firestore ou mockEvenements.insert), utiliser les champs id de
+  // VisibiliteSelection (usagerConcerneId / uniteConcerneeId /
+  // usagersPresentsConcernesIds) pour construire l'Evenement, pas les noms.
   void _handleCreer() {
     if (_visibilite.type == VisibiliteType.individuelle && _visibilite.usagerId == null) {
       ScaffoldMessenger.of(context).showSnackBar(

@@ -55,12 +55,19 @@ class JournalDeVieScreen extends StatefulWidget {
   const JournalDeVieScreen({
     super.key,
     this.usagerName = 'Léo Martin',
+    this.usagerId,
     this.usagerAge = 8,
     this.souvenirsCount = 47,
     this.isPro = false,
   });
 
   final String usagerName;
+
+  /// Chantier 0 / Session C2a — id stable de l'usager, transmis en plus de
+  /// [usagerName] (qui reste utilisé pour l'affichage). `null` si l'appelant
+  /// n'a pas pu résoudre d'id (voir selection_usager_journal_screen.dart).
+  /// Pas encore utilisé pour filtrer le journal dans cet écran.
+  final String? usagerId;
   final int usagerAge;
   final int souvenirsCount;
 
