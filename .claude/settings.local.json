@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(flutter *)",
+      "Bash(mkdir -p \"C:/dev/relio/assets/images/logo\" \"C:/dev/relio/assets/images/fond\")",
+      "Bash(cp \"C:/Users/esteb/Desktop/SEB/RELIO/chartre graphique/Logo/logo_341px.png\" \"C:/dev/relio/assets/images/logo/logo.png\")",
+      "Bash(cp \"C:/Users/esteb/Desktop/SEB/RELIO/chartre graphique/Logo/logo_341px_blanc.png\" \"C:/dev/relio/assets/images/logo/logo_blanc.png\")",
+      "Bash(cp \"C:/Users/esteb/Desktop/SEB/RELIO/chartre graphique/Logo/logo_341px_blanc_rose.png\" \"C:/dev/relio/assets/images/logo/logo_blanc_rose.png\")",
+      "Bash(cp \"C:/Users/esteb/Desktop/SEB/RELIO/chartre graphique/Logo/logo_341px_bleu.png\" \"C:/dev/relio/assets/images/logo/logo_bleu.png\")",
+      "Bash(dart run *)"
+    ]
+  }
+}
