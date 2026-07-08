@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../data/mock_data.dart';
 import '../models/visibilite_type.dart';
 import '../theme/app_colors.dart';
 import 'section_label.dart';
@@ -12,12 +13,35 @@ class VisibiliteSelection {
     this.usagerId,
     this.uniteId,
     this.usagersPresentsIds = const [],
+    this.usagerConcerneId,
+    this.uniteConcerneeId,
+    this.usagersPresentsConcernesIds = const [],
   });
 
   final VisibiliteType type;
+
+  /// DEPRECATED — malgré leur nom, ces champs contiennent les NOMS choisis
+  /// dans l'UI (ex: `'Lucas'`, `'Unité Les Papillons'`), pas des ids. À
+  /// retirer en Session C au profit de [usagerConcerneId]/
+  /// [uniteConcerneeId]/[usagersPresentsConcernesIds] ci-dessous.
   final String? usagerId;
   final String? uniteId;
   final List<String> usagersPresentsIds;
+
+  /// Chantier 0 / Session B — vrai id stable (`mockUsagersCatalogue`),
+  /// résolu depuis [usagerId] via [resolveUsagerId]. `null` si non
+  /// résolvable (nom absent du catalogue, ou homonyme ambigu — voir le cas
+  /// `usager_017`/`usager_032` "Emma Bernard").
+  final String? usagerConcerneId;
+
+  /// Chantier 0 / Session B — vrai id stable (`mockUnitesAgendaCatalogue`
+  /// ou `mockUnitesFamillesCatalogue` selon la liste fournie au sélecteur),
+  /// résolu depuis [uniteId] via [resolveUniteId].
+  final String? uniteConcerneeId;
+
+  /// Chantier 0 / Session B — vrais ids stables, résolus depuis
+  /// [usagersPresentsIds] via [resolveUsagerId].
+  final List<String> usagersPresentsConcernesIds;
 }
 
 /// Bloc réutilisable (chips Individuelle/Unité/Établissement + le sous-bloc
@@ -59,15 +83,21 @@ class _VisibiliteSelectorState extends State<VisibiliteSelector> {
   }
 
   void _notify() {
+    final usagersPresents = _groupePresence.entries
+        .where((entry) => entry.value)
+        .map((entry) => entry.key)
+        .toList();
+
     widget.onChanged(
       VisibiliteSelection(
         type: _type,
         usagerId: _selectedUsager,
         uniteId: _selectedUnite,
-        usagersPresentsIds: _groupePresence.entries
-            .where((entry) => entry.value)
-            .map((entry) => entry.key)
-            .toList(),
+        usagersPresentsIds: usagersPresents,
+        usagerConcerneId: _selectedUsager == null ? null : resolveUsagerId(_selectedUsager!),
+        uniteConcerneeId: _selectedUnite == null ? null : resolveUniteId(_selectedUnite!),
+        usagersPresentsConcernesIds:
+            usagersPresents.map(resolveUsagerId).whereType<String>().toList(),
       ),
     );
   }

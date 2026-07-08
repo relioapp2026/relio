@@ -15,6 +15,8 @@ class Document {
     required this.portee,
     this.usagerNom,
     this.uniteNom,
+    this.usagerId,
+    this.uniteId,
     required this.envoyePar,
     required this.envoyeParNom,
     required this.dateEnvoi,
@@ -36,6 +38,19 @@ class Document {
 
   /// Renseigné uniquement si `portee == groupe`.
   final String? uniteNom;
+
+  /// Chantier 0 / Session B — vrai id stable (`mockUsagersCatalogue`),
+  /// résolu depuis [usagerNom]. Renseigné uniquement si
+  /// `portee == individuelle`. `null` si non résolvable (nom absent du
+  /// catalogue, ou homonyme ambigu). À utiliser à la place de [usagerNom]
+  /// dès la migration des écrans (Session C).
+  final String? usagerId;
+
+  /// Chantier 0 / Session B — vrai id stable (`mockUnitesFamillesCatalogue`,
+  /// le monde Documents/Messages/Profil), résolu depuis [uniteNom].
+  /// Renseigné uniquement si `portee == groupe`. À utiliser à la place de
+  /// [uniteNom] dès la migration des écrans (Session C).
+  final String? uniteId;
 
   final String envoyePar;
   final String envoyeParNom;
@@ -69,6 +84,8 @@ class Document {
       portee: portee,
       usagerNom: usagerNom,
       uniteNom: uniteNom,
+      usagerId: usagerId,
+      uniteId: uniteId,
       envoyePar: envoyePar,
       envoyeParNom: envoyeParNom,
       dateEnvoi: dateEnvoi,

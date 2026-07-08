@@ -136,6 +136,15 @@ final mockEvenements = [
     dateFin: _relative(2, 14, 45),
     type: VisibiliteType.individuelle,
     usagersIds: const ['Léo Martin'],
+    // TEST DATA À NETTOYER (Chantier 0 / Session C1) — "Léo Martin" ne
+    // correspond à aucun usager du catalogue fusionné (ni "Léo
+    // Fournier"/"Léo Girard", ni "Lucas Martin") : incohérence déjà présente
+    // dans les données mock d'origine, antérieure à ce chantier. Décision
+    // prise en Session C1 : ne pas deviner à qui cet événement était censé
+    // se rattacher (product decision), donc laisser `usagersConcernesIds`
+    // vide plutôt que d'inventer un id. À signaler à Séb : soit rattacher
+    // evt1 à un usager réel, soit le supprimer des fixtures.
+    usagersConcernesIds: ['Léo Martin'].map(resolveUsagerId).whereType<String>().toList(),
     createdAt: _relative(-1),
   ),
   Evenement(
@@ -147,6 +156,7 @@ final mockEvenements = [
     dateFin: _relative(3, 11, 30),
     type: VisibiliteType.groupe,
     uniteId: 'Unité Étoiles',
+    uniteConcerneeId: resolveUniteId('Unité Étoiles'),
     createdAt: _relative(-1),
   ),
   Evenement(
@@ -157,6 +167,7 @@ final mockEvenements = [
     dateDebut: _relative(5),
     type: VisibiliteType.groupe,
     uniteId: 'Unité Papillons',
+    uniteConcerneeId: resolveUniteId('Unité Papillons'),
     createdAt: _relative(-1),
   ),
   Evenement(
@@ -166,6 +177,40 @@ final mockEvenements = [
     touteLaJournee: true,
     dateDebut: _relative(10),
     type: VisibiliteType.etablissement,
+    createdAt: _relative(-1),
+  ),
+  // --- Chantier 0 / Session C1 — cas de test homonymie volontaire --------
+  // Deux événements individuels pour deux usagers différents qui portent
+  // EXACTEMENT le même nom ("Emma Bernard") : usager_017 (Unité Les
+  // Papillons, rattachée à fam_bernard) et usager_032 (Unité Étoiles, monde
+  // Agenda, aucune famille rattachée — voir Session A-bis). Impossible de
+  // les distinguer par nom (`resolveUsagerId('Emma Bernard')` retourne
+  // `null`, ambigu) : `usagersConcernesIds` est donc fixé explicitement ici
+  // avec le bon id, pas résolu depuis un nom. Sert à prouver que
+  // agenda_famille_screen.dart, en filtrant par id, affiche uniquement
+  // l'événement du bon usager.
+  Evenement(
+    id: 'evt5',
+    titre: 'Rendez-vous orthophonie',
+    description: 'Séance individuelle de suivi avec Emma Bernard (Unité Les Papillons).',
+    touteLaJournee: false,
+    dateDebut: _relative(4, 15, 0),
+    dateFin: _relative(4, 15, 45),
+    type: VisibiliteType.individuelle,
+    usagersIds: const ['Emma Bernard'],
+    usagersConcernesIds: const ['usager_017'],
+    createdAt: _relative(-1),
+  ),
+  Evenement(
+    id: 'evt6',
+    titre: 'Séance de kinésithérapie',
+    description: 'Sortie à la piscine municipale avec Emma Bernard (Unité Étoiles, monde Agenda).',
+    touteLaJournee: false,
+    dateDebut: _relative(6, 10, 0),
+    dateFin: _relative(6, 11, 0),
+    type: VisibiliteType.individuelle,
+    usagersIds: const ['Emma Bernard'],
+    usagersConcernesIds: const ['usager_032'],
     createdAt: _relative(-1),
   ),
 ];
@@ -346,6 +391,51 @@ final mockUnitesAvecUsagers = mockUnitesFamillesCatalogue.map((unite) {
   return UniteAvecUsagers(nom: unite.nom, usagers: usagers);
 }).toList();
 
+// -----------------------------------------------------------------------
+// CHANTIER 0 / SESSION B — résolution nom → id pour les données mock
+// -----------------------------------------------------------------------
+// Utilisées ci-dessous pour renseigner les nouveaux champs id (en parallèle
+// des anciens champs "Nom"/"Ids" qui contiennent en réalité des noms — voir
+// les commentaires DEPRECATED dans document.dart/message.dart/evenement.dart)
+// et par `VisibiliteSelector` (Session B) pour émettre des ids en plus des
+// noms choisis dans l'UI.
+
+/// Résout un nom d'usager (prénom seul ou nom complet, tel que choisi dans
+/// l'UI) vers son vrai id stable dans [mockUsagersCatalogue]. Retourne
+/// `null` si non résolvable — volontairement prudent face aux homonymes
+/// (voir `usager_017`/`usager_032`, "Emma Bernard") : mieux vaut ne pas
+/// résoudre que résoudre au hasard.
+///
+/// Stratégie :
+/// 1. Lien famille (`familleUidPourUsager`) : résout un prénom de façon non
+///    ambiguë pour le monde Documents/Messages/Profil (chaque prénom de
+///    `mockFamilles` désigne un usager précis, indépendamment des
+///    homonymes qui peuvent exister ailleurs dans le catalogue).
+/// 2. Sinon, recherche d'un nom complet unique dans le catalogue fusionné —
+///    si 0 ou plusieurs usagers correspondent, retourne `null`.
+String? resolveUsagerId(String nomOuPrenom) {
+  final familleUid = familleUidPourUsager(nomOuPrenom);
+  if (familleUid != null) return mockFamilles[familleUid]!.usagerId;
+
+  final correspondances =
+      mockUsagersCatalogue.where((u) => u.nomComplet == nomOuPrenom).toList();
+  return correspondances.length == 1 ? correspondances.first.id : null;
+}
+
+/// Résout un nom d'unité (tel que choisi dans l'UI) vers son vrai id
+/// stable, en cherchant dans les deux catalogues d'unités (Agenda et
+/// Documents/Messages/Profil — voir la note de fusion en tête de fichier).
+/// Les deux nomenclatures ne se recoupant jamais en tant que chaînes
+/// exactes, la recherche combinée est sans ambiguïté. Retourne `null` si
+/// aucune unité ne correspond.
+String? resolveUniteId(String nom) {
+  final correspondances = [
+    ...mockUnitesAgendaCatalogue,
+    ...mockUnitesFamillesCatalogue,
+  ].where((u) => u.nom == nom).toList();
+  return correspondances.length == 1 ? correspondances.first.id : null;
+}
+
 final mockDocuments = [
   Document(
     id: 'doc1',
@@ -354,6 +444,7 @@ final mockDocuments = [
     description: 'Autorisation pour la sortie au Zoo de la Tête d\'Or le 25 mai de 9h à 16h.',
     portee: VisibiliteType.groupe,
     uniteNom: 'Unité Les Papillons',
+    uniteId: resolveUniteId('Unité Les Papillons'),
     envoyePar: mockProConnecteUid,
     envoyeParNom: mockProConnecteNom,
     dateEnvoi: _relative(-6, 14, 30),
@@ -428,6 +519,7 @@ final mockDocuments = [
     description: 'Sortie à la piscine municipale, prévoir maillot et serviette.',
     portee: VisibiliteType.individuelle,
     usagerNom: 'Lucas',
+    usagerId: resolveUsagerId('Lucas'),
     envoyePar: mockProConnecteUid,
     envoyeParNom: mockProConnecteNom,
     dateEnvoi: _relative(-2, 9, 20),
@@ -449,6 +541,7 @@ final mockMessages = [
     contenu: 'Bonjour, Lucas a très bien mangé ce midi et a beaucoup aimé l\'atelier peinture cet après-midi 🎨',
     portee: VisibiliteType.individuelle,
     usagersIds: const ['Lucas'],
+    usagersConcernesIds: ['Lucas'].map(resolveUsagerId).whereType<String>().toList(),
     expediteurId: mockProConnecteUid,
     expediteurNom: mockProConnecteNom,
     dateEnvoi: _relative(-1, 16, 0),
@@ -463,6 +556,7 @@ final mockMessages = [
         'maillot et serviette.',
     portee: VisibiliteType.groupe,
     uniteId: 'Unité Les Papillons',
+    uniteConcerneeId: resolveUniteId('Unité Les Papillons'),
     expediteurId: mockProConnecteUid,
     expediteurNom: mockProConnecteNom,
     dateEnvoi: _relative(-2, 9, 30),

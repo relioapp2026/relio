@@ -13,9 +13,12 @@ import 'messagerie_famille_screen.dart';
 import 'notifications_famille_screen.dart';
 import 'profil_screen.dart';
 
-// Donnée factice : usager et unité de la famille connectée.
-const _monUsager = 'Léo Martin';
-const _monUnite = 'Unité Papillons';
+// Donnée factice : usager et unité de la famille connectée, par id stable
+// (Chantier 0 / Session C1 — remplace l'ancien filtrage par nom, qui aurait
+// confondu les deux "Emma Bernard" du catalogue, voir usager_017/usager_032
+// dans mock_data.dart).
+const _monUsagerId = 'usager_017'; // Emma Bernard, Unité Les Papillons
+const _monUniteId = 'unite_agenda_papillons'; // = "Unité Papillons" (monde Agenda)
 
 class AgendaFamilleScreen extends StatelessWidget {
   const AgendaFamilleScreen({super.key});
@@ -40,13 +43,14 @@ class AgendaFamilleScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Lecture seule : uniquement les événements concernant mon usager
-    // (individuelle), son unité (groupe) ou tout l'établissement.
+    // (individuelle, par id), son unité (groupe, par id) ou tout
+    // l'établissement.
     final evenements = mockEvenements.where((evenement) {
       switch (evenement.type) {
         case VisibiliteType.individuelle:
-          return evenement.usagersIds.contains(_monUsager);
+          return evenement.usagersConcernesIds.contains(_monUsagerId);
         case VisibiliteType.groupe:
-          return evenement.uniteId == _monUnite;
+          return evenement.uniteConcerneeId == _monUniteId;
         case VisibiliteType.etablissement:
           return true;
       }

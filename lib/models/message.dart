@@ -12,6 +12,8 @@ class Message {
     this.usagersIds = const [],
     this.uniteId,
     this.etablissementId,
+    this.usagersConcernesIds = const [],
+    this.uniteConcerneeId,
     required this.expediteurId,
     required this.expediteurNom,
     required this.dateEnvoi,
@@ -24,15 +26,31 @@ class Message {
   final String contenu;
   final VisibiliteType portee;
 
-  /// Renseigné uniquement si `portee == individuelle` (un ou plusieurs noms
-  /// d'usagers).
+  /// DEPRECATED — malgré son nom, contient des NOMS d'usagers (ex:
+  /// `['Lucas']`), pas des ids. Renseigné uniquement si
+  /// `portee == individuelle`. À retirer en Session C au profit de
+  /// [usagersConcernesIds].
   final List<String> usagersIds;
 
-  /// Renseigné uniquement si `portee == groupe`.
+  /// DEPRECATED — malgré son nom, contient un NOM d'unité (ex: `'Unité Les
+  /// Papillons'`), pas un id. Renseigné uniquement si `portee == groupe`. À
+  /// retirer en Session C au profit de [uniteConcerneeId].
   final String? uniteId;
 
   /// Renseigné uniquement si `portee == etablissement`.
   final String? etablissementId;
+
+  /// Chantier 0 / Session B — vrais ids stables (`mockUsagersCatalogue`),
+  /// résolus depuis [usagersIds]. `null`/absent si non résolvable (nom
+  /// absent du catalogue, ou homonyme ambigu). À utiliser à la place de
+  /// [usagersIds] dès la migration des écrans (Session C).
+  final List<String> usagersConcernesIds;
+
+  /// Chantier 0 / Session B — vrai id stable (`mockUnitesFamillesCatalogue`,
+  /// le monde Documents/Messages/Profil), résolu depuis [uniteId]. À
+  /// utiliser à la place de [uniteId] dès la migration des écrans
+  /// (Session C).
+  final String? uniteConcerneeId;
 
   final String expediteurId;
   final String expediteurNom;
@@ -58,6 +76,8 @@ class Message {
       usagersIds: usagersIds,
       uniteId: uniteId,
       etablissementId: etablissementId,
+      usagersConcernesIds: usagersConcernesIds,
+      uniteConcerneeId: uniteConcerneeId,
       expediteurId: expediteurId,
       expediteurNom: expediteurNom,
       dateEnvoi: dateEnvoi,
