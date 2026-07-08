@@ -1,20 +1,26 @@
+import 'package:flutter/material.dart';
+
 /// Modèle correspondant à la (future) collection Firestore `publications`.
 /// Même logique de portée que les documents/messages/agenda : un ou
 /// plusieurs usagers, une unité, ou tout l'établissement.
 ///
-/// Créé en Chantier 0 / Session A — pas encore utilisé par
-/// feed_famille_screen.dart / feed_pro_screen.dart, qui restent en
-/// littéraux inline jusqu'à la Session C.
+/// Créé en Chantier 0 / Session A, câblé au feed en Session C2b
+/// (feed_famille_screen.dart / feed_pro_screen.dart, via mockPublications
+/// dans mock_data.dart).
 class PublicationCommentaire {
   const PublicationCommentaire({
     required this.auteurId,
     required this.auteurNom,
+    required this.avatarColor,
     required this.texte,
     required this.date,
   });
 
   final String auteurId;
   final String auteurNom;
+
+  /// Couleur d'avatar de l'auteur du commentaire (affichage uniquement).
+  final Color avatarColor;
   final String texte;
   final DateTime date;
 }
@@ -24,6 +30,7 @@ class Publication {
     required this.id,
     required this.auteurId,
     required this.auteurNom,
+    required this.avatarColor,
     required this.date,
     required this.typePublication,
     this.usagersConcernesIds = const [],
@@ -42,6 +49,9 @@ class Publication {
   final String id;
   final String auteurId;
   final String auteurNom;
+
+  /// Couleur d'avatar de l'auteur (affichage uniquement).
+  final Color avatarColor;
   final DateTime date;
 
   /// "individuelle" / "groupe" / "etablissement". String (et non

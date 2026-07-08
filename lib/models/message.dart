@@ -9,8 +9,6 @@ class Message {
     required this.id,
     required this.contenu,
     required this.portee,
-    this.usagersIds = const [],
-    this.uniteId,
     this.etablissementId,
     this.usagersConcernesIds = const [],
     this.uniteConcerneeId,
@@ -26,30 +24,16 @@ class Message {
   final String contenu;
   final VisibiliteType portee;
 
-  /// DEPRECATED — malgré son nom, contient des NOMS d'usagers (ex:
-  /// `['Lucas']`), pas des ids. Renseigné uniquement si
-  /// `portee == individuelle`. À retirer en Session C au profit de
-  /// [usagersConcernesIds].
-  final List<String> usagersIds;
-
-  /// DEPRECATED — malgré son nom, contient un NOM d'unité (ex: `'Unité Les
-  /// Papillons'`), pas un id. Renseigné uniquement si `portee == groupe`. À
-  /// retirer en Session C au profit de [uniteConcerneeId].
-  final String? uniteId;
-
   /// Renseigné uniquement si `portee == etablissement`.
   final String? etablissementId;
 
-  /// Chantier 0 / Session B — vrais ids stables (`mockUsagersCatalogue`),
-  /// résolus depuis [usagersIds]. `null`/absent si non résolvable (nom
-  /// absent du catalogue, ou homonyme ambigu). À utiliser à la place de
-  /// [usagersIds] dès la migration des écrans (Session C).
+  /// Ids stables (`mockUsagersCatalogue`) des usagers concernés. Renseigné
+  /// uniquement si `portee == individuelle`.
   final List<String> usagersConcernesIds;
 
-  /// Chantier 0 / Session B — vrai id stable (`mockUnitesFamillesCatalogue`,
-  /// le monde Documents/Messages/Profil), résolu depuis [uniteId]. À
-  /// utiliser à la place de [uniteId] dès la migration des écrans
-  /// (Session C).
+  /// Id stable (`mockUnitesFamillesCatalogue`, le monde
+  /// Documents/Messages/Profil) de l'unité concernée. Renseigné uniquement
+  /// si `portee == groupe`.
   final String? uniteConcerneeId;
 
   final String expediteurId;
@@ -73,8 +57,6 @@ class Message {
       id: id,
       contenu: contenu,
       portee: portee,
-      usagersIds: usagersIds,
-      uniteId: uniteId,
       etablissementId: etablissementId,
       usagersConcernesIds: usagersConcernesIds,
       uniteConcerneeId: uniteConcerneeId,

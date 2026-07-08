@@ -5,6 +5,7 @@ import '../models/document.dart';
 import '../models/evenement.dart';
 import '../models/message.dart';
 import '../models/notification.dart';
+import '../models/publication.dart';
 import '../models/type_document.dart';
 import '../models/visibilite_type.dart';
 import '../theme/app_colors.dart';
@@ -135,16 +136,16 @@ final mockEvenements = [
     dateDebut: _relative(2, 14, 0),
     dateFin: _relative(2, 14, 45),
     type: VisibiliteType.individuelle,
-    usagersIds: const ['Léo Martin'],
-    // TEST DATA À NETTOYER (Chantier 0 / Session C1) — "Léo Martin" ne
-    // correspond à aucun usager du catalogue fusionné (ni "Léo
-    // Fournier"/"Léo Girard", ni "Lucas Martin") : incohérence déjà présente
-    // dans les données mock d'origine, antérieure à ce chantier. Décision
-    // prise en Session C1 : ne pas deviner à qui cet événement était censé
-    // se rattacher (product decision), donc laisser `usagersConcernesIds`
-    // vide plutôt que d'inventer un id. À signaler à Séb : soit rattacher
-    // evt1 à un usager réel, soit le supprimer des fixtures.
-    usagersConcernesIds: ['Léo Martin'].map(resolveUsagerId).whereType<String>().toList(),
+    // TEST DATA À NETTOYER (Chantier 0 / Session C1) — l'ancien champ
+    // usagersIds valait ['Léo Martin'], qui ne correspond à aucun usager du
+    // catalogue fusionné (ni "Léo Fournier"/"Léo Girard", ni "Lucas
+    // Martin") : incohérence déjà présente dans les données mock d'origine,
+    // antérieure à ce chantier. Décision prise en Session C1 : ne pas
+    // deviner à qui cet événement était censé se rattacher (product
+    // decision), donc laisser `usagersConcernesIds` vide plutôt que
+    // d'inventer un id. À signaler à Séb : soit rattacher evt1 à un usager
+    // réel, soit le supprimer des fixtures.
+    usagersConcernesIds: const [],
     createdAt: _relative(-1),
   ),
   Evenement(
@@ -155,7 +156,6 @@ final mockEvenements = [
     dateDebut: _relative(3, 10, 0),
     dateFin: _relative(3, 11, 30),
     type: VisibiliteType.groupe,
-    uniteId: 'Unité Étoiles',
     uniteConcerneeId: resolveUniteId('Unité Étoiles'),
     createdAt: _relative(-1),
   ),
@@ -166,7 +166,6 @@ final mockEvenements = [
     touteLaJournee: true,
     dateDebut: _relative(5),
     type: VisibiliteType.groupe,
-    uniteId: 'Unité Papillons',
     uniteConcerneeId: resolveUniteId('Unité Papillons'),
     createdAt: _relative(-1),
   ),
@@ -197,7 +196,6 @@ final mockEvenements = [
     dateDebut: _relative(4, 15, 0),
     dateFin: _relative(4, 15, 45),
     type: VisibiliteType.individuelle,
-    usagersIds: const ['Emma Bernard'],
     usagersConcernesIds: const ['usager_017'],
     createdAt: _relative(-1),
   ),
@@ -209,7 +207,6 @@ final mockEvenements = [
     dateDebut: _relative(6, 10, 0),
     dateFin: _relative(6, 11, 0),
     type: VisibiliteType.individuelle,
-    usagersIds: const ['Emma Bernard'],
     usagersConcernesIds: const ['usager_032'],
     createdAt: _relative(-1),
   ),
@@ -478,6 +475,130 @@ String? resolveUniteId(String nom) {
   return correspondances.length == 1 ? correspondances.first.id : null;
 }
 
+/// Chantier 0 / Session C2b — résout un nom d'auteur de publication/
+/// commentaire vers un id, en cherchant parmi les familles connues
+/// (`mockFamilles`, par nom complet) et le pro connecté
+/// (`mockProConnecteNom`). Retourne un id `auteur_inconnu_...` si le nom ne
+/// correspond à personne de connu.
+///
+/// Cas réel : "Camille Bernard" (auteure de pub2, commentatrice de pub1)
+/// ne correspond à aucune famille ni au pro connecté — un mélange de
+/// "Camille Rousseau" et "Paul/Emma Bernard" déjà présent dans les données
+/// mock d'origine, antérieur à ce chantier. Plutôt que d'inventer un id
+/// réel (ce serait une décision de contenu, pas technique), un id
+/// placeholder clairement identifiable est utilisé — à nettoyer avec Séb.
+String resolveAuteurId(String nom) {
+  if (nom == mockProConnecteNom) return mockProConnecteUid;
+  for (final entry in mockFamilles.entries) {
+    if (entry.value.nom == nom) return entry.key;
+  }
+  return 'auteur_inconnu_${nom.toLowerCase().replaceAll(' ', '_')}';
+}
+
+// Chantier 0 / Session C2b — publications du feed, migrées des littéraux
+// inline de feed_famille_screen.dart/feed_pro_screen.dart vers de vraies
+// instances de Publication (modèle créé en Session A). Aucune des deux
+// publications d'origine ne mentionnait un usager ou une unité précis dans
+// son texte, et les deux s'affichaient déjà sans filtre à tout le monde :
+// `typePublication: 'etablissement'` est donc le choix qui reflète le mieux
+// leur comportement actuel, plutôt que d'inventer un usager/une unité qui
+// ne figure pas dans les données d'origine (décision de contenu, pas
+// technique — à revoir avec Séb si ces publications sont en réalité
+// destinées à une unité précise).
+//
+// `likes` n'existait pas avant (seulement un compteur `likeCount`) : la
+// liste ci-dessous est un placeholder qui préserve uniquement le nombre
+// affiché, pas des identités réelles de personnes ayant liké.
+final mockPublications = [
+  Publication(
+    id: 'pub1',
+    auteurId: resolveAuteurId('Marie Dubois'),
+    auteurNom: 'Marie Dubois',
+    avatarColor: AppColors.roseViolet,
+    date: _ilYA(const Duration(hours: 2)),
+    typePublication: 'etablissement',
+    etablissementId: mockEtablissementId,
+    texte: 'Atelier peinture ce matin ! Les enfants ont laissé libre '
+        'cours à leur imagination. De magnifiques créations hautes '
+        'en couleurs 🎨✨',
+    photos: const ['mock_photo_1.png', 'mock_photo_2.png', 'mock_photo_3.png'],
+    likes: List.generate(24, (i) => 'like_mock_$i'),
+    commentaires: [
+      PublicationCommentaire(
+        auteurId: resolveAuteurId('Thomas Martin'),
+        auteurNom: 'Thomas Martin',
+        avatarColor: AppColors.turquoise,
+        texte: 'Waouh ! Ils sont vraiment talentueux 👏',
+        date: _ilYA(const Duration(hours: 1, minutes: 50)),
+      ),
+      PublicationCommentaire(
+        auteurId: resolveAuteurId('Sophie Leroy'),
+        auteurNom: 'Sophie Leroy',
+        avatarColor: AppColors.marine,
+        texte: 'Les couleurs sont superbes ! Bravo à tous 😊',
+        date: _ilYA(const Duration(hours: 1, minutes: 40)),
+      ),
+      PublicationCommentaire(
+        auteurId: resolveAuteurId('Julien Petit'),
+        auteurNom: 'Julien Petit',
+        avatarColor: AppColors.roseViolet,
+        texte: 'Quelle belle énergie créative !',
+        date: _ilYA(const Duration(hours: 1, minutes: 30)),
+      ),
+      PublicationCommentaire(
+        auteurId: resolveAuteurId('Nathalie Moreau'),
+        auteurNom: 'Nathalie Moreau',
+        avatarColor: AppColors.turquoise,
+        texte: 'Ça leur fait tellement de bien de créer.',
+        date: _ilYA(const Duration(hours: 1, minutes: 20)),
+      ),
+      PublicationCommentaire(
+        auteurId: resolveAuteurId('Camille Bernard'),
+        auteurNom: 'Camille Bernard',
+        avatarColor: AppColors.marine,
+        texte: 'Merci pour le partage, ça fait plaisir à voir !',
+        date: _ilYA(const Duration(hours: 1, minutes: 10)),
+      ),
+    ],
+  ),
+  Publication(
+    id: 'pub2',
+    auteurId: resolveAuteurId('Camille Bernard'),
+    auteurNom: 'Camille Bernard',
+    avatarColor: AppColors.marine,
+    date: _ilYA(const Duration(hours: 5)),
+    typePublication: 'etablissement',
+    etablissementId: mockEtablissementId,
+    texte: 'Jardinage au programme cet après-midi ! Plantation de '
+        'fleurs et découverte de la nature 🌱🌻',
+    photos: const ['mock_photo_1.png'],
+    likes: List.generate(18, (i) => 'like_mock_$i'),
+    commentaires: [
+      PublicationCommentaire(
+        auteurId: resolveAuteurId('Julien Petit'),
+        auteurNom: 'Julien Petit',
+        avatarColor: AppColors.roseViolet,
+        texte: 'Super activité en plein air ! 🌿',
+        date: _ilYA(const Duration(hours: 4, minutes: 40)),
+      ),
+      PublicationCommentaire(
+        auteurId: resolveAuteurId('Nathalie Moreau'),
+        auteurNom: 'Nathalie Moreau',
+        avatarColor: AppColors.turquoise,
+        texte: 'Ça fait du bien de voir les enfants dehors ! ☀️',
+        date: _ilYA(const Duration(hours: 4, minutes: 20)),
+      ),
+      PublicationCommentaire(
+        auteurId: resolveAuteurId('Marie Dubois'),
+        auteurNom: 'Marie Dubois',
+        avatarColor: AppColors.roseViolet,
+        texte: 'Quelle belle idée de sortie !',
+        date: _ilYA(const Duration(hours: 4)),
+      ),
+    ],
+  ),
+];
+
 final mockDocuments = [
   Document(
     id: 'doc1',
@@ -485,7 +606,6 @@ final mockDocuments = [
     type: TypeDocument.autorisationSortie,
     description: 'Autorisation pour la sortie au Zoo de la Tête d\'Or le 25 mai de 9h à 16h.',
     portee: VisibiliteType.groupe,
-    uniteNom: 'Unité Les Papillons',
     uniteId: resolveUniteId('Unité Les Papillons'),
     envoyePar: mockProConnecteUid,
     envoyeParNom: mockProConnecteNom,
@@ -560,7 +680,6 @@ final mockDocuments = [
     type: TypeDocument.autre,
     description: 'Sortie à la piscine municipale, prévoir maillot et serviette.',
     portee: VisibiliteType.individuelle,
-    usagerNom: 'Lucas',
     usagerId: resolveUsagerId('Lucas'),
     envoyePar: mockProConnecteUid,
     envoyeParNom: mockProConnecteNom,
@@ -582,7 +701,6 @@ final mockMessages = [
     id: 'msg1',
     contenu: 'Bonjour, Lucas a très bien mangé ce midi et a beaucoup aimé l\'atelier peinture cet après-midi 🎨',
     portee: VisibiliteType.individuelle,
-    usagersIds: const ['Lucas'],
     usagersConcernesIds: ['Lucas'].map(resolveUsagerId).whereType<String>().toList(),
     expediteurId: mockProConnecteUid,
     expediteurNom: mockProConnecteNom,
@@ -597,7 +715,6 @@ final mockMessages = [
         'Rappel : la sortie piscine de l\'unité Les Papillons aura lieu vendredi prochain, prévoir '
         'maillot et serviette.',
     portee: VisibiliteType.groupe,
-    uniteId: 'Unité Les Papillons',
     uniteConcerneeId: resolveUniteId('Unité Les Papillons'),
     expediteurId: mockProConnecteUid,
     expediteurNom: mockProConnecteNom,

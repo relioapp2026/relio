@@ -13,8 +13,6 @@ class Document {
     required this.type,
     required this.description,
     required this.portee,
-    this.usagerNom,
-    this.uniteNom,
     this.usagerId,
     this.uniteId,
     required this.envoyePar,
@@ -33,23 +31,13 @@ class Document {
   final String description;
   final VisibiliteType portee;
 
-  /// Renseigné uniquement si `portee == individuelle`.
-  final String? usagerNom;
-
-  /// Renseigné uniquement si `portee == groupe`.
-  final String? uniteNom;
-
-  /// Chantier 0 / Session B — vrai id stable (`mockUsagersCatalogue`),
-  /// résolu depuis [usagerNom]. Renseigné uniquement si
-  /// `portee == individuelle`. `null` si non résolvable (nom absent du
-  /// catalogue, ou homonyme ambigu). À utiliser à la place de [usagerNom]
-  /// dès la migration des écrans (Session C).
+  /// Id stable (`mockUsagersCatalogue`). Renseigné uniquement si
+  /// `portee == individuelle`.
   final String? usagerId;
 
-  /// Chantier 0 / Session B — vrai id stable (`mockUnitesFamillesCatalogue`,
-  /// le monde Documents/Messages/Profil), résolu depuis [uniteNom].
-  /// Renseigné uniquement si `portee == groupe`. À utiliser à la place de
-  /// [uniteNom] dès la migration des écrans (Session C).
+  /// Id stable (`mockUnitesFamillesCatalogue`, le monde
+  /// Documents/Messages/Profil). Renseigné uniquement si
+  /// `portee == groupe`.
   final String? uniteId;
 
   final String envoyePar;
@@ -82,8 +70,6 @@ class Document {
       type: type,
       description: description,
       portee: portee,
-      usagerNom: usagerNom,
-      uniteNom: uniteNom,
       usagerId: usagerId,
       uniteId: uniteId,
       envoyePar: envoyePar,

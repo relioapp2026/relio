@@ -112,8 +112,6 @@ class _EnvoyerDocumentScreenState extends State<EnvoyerDocumentScreen> {
         type: _type,
         description: _descriptionController.text.trim(),
         portee: _visibilite.type,
-        usagerNom: _visibilite.type == VisibiliteType.individuelle ? _visibilite.usagerId : null,
-        uniteNom: _visibilite.type == VisibiliteType.groupe ? _visibilite.uniteId : null,
         usagerId: _visibilite.type == VisibiliteType.individuelle ? _visibilite.usagerConcerneId : null,
         uniteId: _visibilite.type == VisibiliteType.groupe ? _visibilite.uniteConcerneeId : null,
         envoyePar: mockProConnecteUid,

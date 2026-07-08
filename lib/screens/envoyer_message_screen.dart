@@ -72,10 +72,6 @@ class _EnvoyerMessageScreenState extends State<EnvoyerMessageScreen> {
         id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
         contenu: _messageController.text.trim(),
         portee: _visibilite.type,
-        usagersIds: _visibilite.type == VisibiliteType.individuelle && _visibilite.usagerId != null
-            ? [_visibilite.usagerId!]
-            : const [],
-        uniteId: _visibilite.type == VisibiliteType.groupe ? _visibilite.uniteId : null,
         usagersConcernesIds:
             _visibilite.type == VisibiliteType.individuelle && _visibilite.usagerConcerneId != null
                 ? [_visibilite.usagerConcerneId!]
