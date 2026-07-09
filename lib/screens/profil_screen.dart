@@ -187,7 +187,7 @@ class ProfilScreen extends StatelessWidget {
                         label: 'Confidentialité / RGPD',
                         subtitle: 'Gérer mes données personnelles',
                         onTap: () => Navigator.of(context).push(
-                          fadeRoute(const ConfidentialiteRGPDScreen()),
+                          fadeRoute(ConfidentialiteRGPDScreen(isPro: isPro)),
                         ),
                       ),
                       _MenuTile(

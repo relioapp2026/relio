@@ -155,7 +155,7 @@ class _EnvoyerDocumentScreenState extends State<EnvoyerDocumentScreen> {
                         VisibiliteSelector(
                           typeLabel: 'Portée du document',
                           mockUsagers: mockUsagersAvecFamillesNomComplet,
-                          mockUnites: mockUnitesAvecFamilles,
+                          mockUnites: mockUnites,
                           onChanged: (value) => setState(() => _visibilite = value),
                         ),
                         const SizedBox(height: 20),

@@ -14,11 +14,14 @@ import 'notifications_famille_screen.dart';
 import 'profil_screen.dart';
 
 // Donnée factice : usager et unité de la famille connectée, par id stable
-// (Chantier 0 / Session C1 — remplace l'ancien filtrage par nom, qui aurait
-// confondu les deux "Emma Bernard" du catalogue, voir usager_017/usager_032
-// dans mock_data.dart).
-const _monUsagerId = 'usager_017'; // Emma Bernard, Unité Les Papillons
-const _monUniteId = 'unite_agenda_papillons'; // = "Unité Papillons" (monde Agenda)
+// (remplace un filtrage par nom, qui aurait confondu les deux "Emma
+// Bernard" du catalogue, voir usager_017/usager_032 dans mock_data.dart).
+// _monUniteId est dérivé de l'usager plutôt que recopié en dur, pour ne
+// jamais désynchroniser des deux (c'était le cas avant l'unification des
+// catalogues d'unités : cette constante pointait vers une unité qui ne
+// correspondait pas vraiment à usager_017).
+const _monUsagerId = 'usager_017'; // Emma Bernard, Unité Polyvalence
+final _monUniteId = findUsagerById(_monUsagerId)!.uniteId;
 
 class AgendaFamilleScreen extends StatelessWidget {
   const AgendaFamilleScreen({super.key});

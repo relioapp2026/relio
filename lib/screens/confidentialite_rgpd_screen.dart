@@ -1,13 +1,65 @@
 import 'package:flutter/material.dart';
 
+import '../data/mock_data.dart';
+import '../models/consent_image.dart';
 import '../theme/app_colors.dart';
 import '../widgets/auth_background.dart';
+import '../widgets/consent_toggle_card.dart';
 import '../widgets/section_label.dart';
 import '../widgets/simple_turquoise_header.dart';
 
-/// Informations RGPD et exercice des droits (accès, suppression).
-class ConfidentialiteRGPDScreen extends StatelessWidget {
-  const ConfidentialiteRGPDScreen({super.key});
+/// Informations RGPD et exercice des droits (accès, suppression), et pour
+/// une famille, modification du consentement à l'image (voir CLAUDE.md,
+/// section « Consentement image (usagers) »).
+class ConfidentialiteRGPDScreen extends StatefulWidget {
+  const ConfidentialiteRGPDScreen({super.key, required this.isPro});
+
+  /// Donnée factice simulant le rôle connecté — le consentement image ne
+  /// concerne que les comptes famille (un pro n'a pas d'usager rattaché).
+  final bool isPro;
+
+  @override
+  State<ConfidentialiteRGPDScreen> createState() => _ConfidentialiteRGPDScreenState();
+}
+
+class _ConfidentialiteRGPDScreenState extends State<ConfidentialiteRGPDScreen> {
+  late final String _usagerId = mockFamilles[mockFamilleConnecteeUid]!.usagerId;
+
+  late bool _individuelle;
+  late bool _groupe;
+  late bool _etablissement;
+
+  @override
+  void initState() {
+    super.initState();
+    if (!widget.isPro) {
+      final consent = mockUsagersCatalogue.firstWhere((u) => u.id == _usagerId).consentImage;
+      _individuelle = consent.individuelle;
+      _groupe = consent.groupe;
+      _etablissement = consent.etablissement;
+    }
+  }
+
+  String get _prenom => mockUsagersCatalogue.firstWhere((u) => u.id == _usagerId).prenom;
+
+  void _handleEnregistrerConsentement() {
+    final index = mockUsagersCatalogue.indexWhere((u) => u.id == _usagerId);
+    if (index != -1) {
+      mockUsagersCatalogue[index] = mockUsagersCatalogue[index].copyWith(
+        consentImage: ConsentImage(
+          individuelle: _individuelle,
+          groupe: _groupe,
+          etablissement: _etablissement,
+          dateConsentement: DateTime.now(),
+          versionTexte: 'v1',
+          saisiPar: mockFamilleConnecteeUid,
+        ),
+      );
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Vos choix ont été enregistrés.')),
+    );
+  }
 
   void _handlePolitique(BuildContext context) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -113,6 +165,55 @@ class ConfidentialiteRGPDScreen extends StatelessWidget {
                       ),
                       child: const Text('Demander la suppression de mon compte'),
                     ),
+                    if (!widget.isPro) ...[
+                      const SizedBox(height: 24),
+                      const SectionLabel('Autorisation à l\'image'),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Vous pouvez modifier à tout moment les photos de $_prenom que '
+                        'les professionnels sont autorisés à partager, par type de '
+                        'publication.',
+                        style: TextStyle(fontSize: 13, color: AppColors.marine.withValues(alpha: 0.65), height: 1.4),
+                      ),
+                      const SizedBox(height: 12),
+                      ConsentToggleCard(
+                        titre: 'Publications individuelles',
+                        description:
+                            'Photo de $_prenom visible uniquement par vous, dans une '
+                            'publication qui le/la concerne personnellement.',
+                        value: _individuelle,
+                        onChanged: (v) => setState(() => _individuelle = v),
+                      ),
+                      const SizedBox(height: 12),
+                      ConsentToggleCard(
+                        titre: 'Publications de groupe',
+                        description:
+                            'Photo de $_prenom visible par les familles des enfants '
+                            'présents lors d\'une activité de son unité.',
+                        value: _groupe,
+                        onChanged: (v) => setState(() => _groupe = v),
+                      ),
+                      const SizedBox(height: 12),
+                      ConsentToggleCard(
+                        titre: 'Publications établissement',
+                        description:
+                            'Photo de $_prenom visible par toutes les familles de '
+                            'l\'établissement, lors d\'un événement ou d\'un temps fort '
+                            'de la vie institutionnelle.',
+                        value: _etablissement,
+                        onChanged: (v) => setState(() => _etablissement = v),
+                      ),
+                      const SizedBox(height: 12),
+                      ElevatedButton(
+                        onPressed: _handleEnregistrerConsentement,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.turquoise,
+                          minimumSize: const Size.fromHeight(52),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        ),
+                        child: const Text('Enregistrer mes choix'),
+                      ),
+                    ],
                   ],
                 ),
               ),

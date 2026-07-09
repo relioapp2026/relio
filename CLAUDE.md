@@ -33,8 +33,10 @@ Relio est une plateforme SaaS mobile connectant les établissements médico-soci
 
 **Principes :**
 - Multi-tenant : hiérarchie établissement → unité → usager
-- Les professionnels ont une liste `unites_acces` (unités auxquelles ils ont accès) ; toute liste d'usagers affichée à un pro est filtrée par ses `unites_acces`
-- Création de compte par code d'invitation (collection `codes_invitation`)
+- Convention de nommage des champs Firestore : camelCase (ex. `unitesAcces`, `dateCreation`, `consentImage`)
+- Les professionnels ont une liste `unitesAcces` (unités auxquelles ils ont accès) ; toute liste d'usagers affichée à un pro est filtrée par ses `unitesAcces`
+- Création de compte par code d'invitation (collection `codes_invitation` : `role`, `usagerId` ou `unitesAcces` selon le rôle, `etablissementId`, `utilise`, `dateCreation`, `dateExpiration` [toujours `null` au MVP, pas de vérification d'expiration], `creePar`). Rôle famille ou pro rattaché à la collection unique `users` (pas de collections séparées par rôle). Génération des codes au MVP via le script de seed Node.js existant, un code par usager/famille, distribué manuellement par Séb — pas d'écran de génération (reporté à Relio Admin, Phase 2)
+- Chaque usager porte un champ `consentImage` (booléens `individuelle`/`groupe`/`etablissement`, faux par défaut, jamais présumé) qui autorise ou non l'apparition visible de sa photo par type de publication — voir « Consentement image » ci-dessous
 - Routage post-connexion selon le rôle : familles / professionnels / admin
 - Séb a un accès de niveau coordinateur couvrant plusieurs unités
 
@@ -48,6 +50,18 @@ Relio est une plateforme SaaS mobile connectant les établissements médico-soci
 
 Chaque publication : texte (max 1000 caractères), 1 à 5 photos, auteur, date, likes, commentaires, notifications.
 
+## Consentement image (usagers)
+
+Les familles autorisent ou refusent la diffusion de la photo de leur enfant, **par type de publication** (individuelle / groupe / établissement), sans que ce choix ne conditionne jamais l'accès au service (RGPD art. 7§4 — non-conditionnement).
+
+**Règle centrale :** un refus n'empêche jamais un pro de publier une photo. Il affiche seulement un badge d'alerte informatif (« Pas d'autorisation image ») sur les écrans de sélection d'usager pour une publication individuelle ou de groupe (`SelectionUsagerJournalPage`, `CreatePublicationPage`) — pas de sélection d'usager en établissement, donc pas de badge applicable. Aucun blocage technique, sur aucun des trois types.
+
+**Schéma `usagers/{usagerId}.consentImage`** : `individuelle` / `groupe` / `etablissement` (bool, faux par défaut) + `dateConsentement`, `versionTexte`, `saisiPar` (uid famille, ou uid admin/coordinateur en fallback pour un parent sans smartphone). Modifiable uniquement par la famille liée à l'usager ou un admin/coordinateur — règle de sécurité Firestore dédiée (même pattern que les publications).
+
+**Recueil :** écran dédié juste après la création de compte famille par code d'invitation, avant l'accès au reste de l'app (3 toggles décochés par défaut, ton chaleureux, prénom dynamique, rassurance explicite que le refus n'empêche pas d'utiliser Relio — texte complet dans `docs/brief-technique-consentement-image-invitations.md`). Modifiable ensuite dans Profil > Paramètres > Confidentialité/RGPD (mêmes toggles, pré-remplis).
+
+**Hors périmètre MVP :** masquage rétroactif automatisé en cas de révocation, gestion de version du texte de consentement et re-consentement, écran de génération de codes d'invitation, expiration des codes, détection/floutage automatique de visages non consentants (Relio IA).
+
 ## Écrans (référence : maquettes FlutterFlow — Séb fournira des captures)
 
 ### Périmètre SESSION 1 — test de validation (ne pas déborder)
@@ -58,17 +72,17 @@ Chaque publication : texte (max 1000 caractères), 1 à 5 photos, auteur, date, 
 Pour la session 1 : données factices (mock) acceptables, la connexion Firestore réelle viendra ensuite. Objectif : valider la fidélité visuelle et le workflow avant de migrer le reste.
 
 ### Écrans suivants (sessions ultérieures, déjà spécifiés côté design)
-- Splash, Welcome, Inscription (avec champ code d'invitation), Mot de passe oublié
+- Splash, Welcome, Inscription (avec champ code d'invitation ; pour un compte famille, suivie de l'écran de recueil du consentement image avant l'accès à l'app), Mot de passe oublié
 - FeedProPage (identique au feed famille + bouton de création de publication)
-- CreatePublicationPage : écran unique avec ChoiceChips Individuelle / Groupe / Établissement (turquoise plein = sélectionné, blanc bordure turquoise = non sélectionné), blocs conditionnels selon le type, sélection photos max 5 (miniatures 80×80, case « + Ajouter » à bordure turquoise pointillée), compteur 0/1000, bouton « Publier » pleine largeur rose-violet
+- CreatePublicationPage : écran unique avec ChoiceChips Individuelle / Groupe / Établissement (turquoise plein = sélectionné, blanc bordure turquoise = non sélectionné), blocs conditionnels selon le type, sélection photos max 5 (miniatures 80×80, case « + Ajouter » à bordure turquoise pointillée), compteur 0/1000, bouton « Publier » pleine largeur rose-violet, badge d'alerte sur les usagers sans consentement image pour le type sélectionné (individuelle/groupe)
 - JournalDeViePage : header turquoise avec nom de l'usager en sous-titre, filtres de période ChoiceChips (Tout / Ce mois / Cette semaine), liste de PublicationCard, état vide chaleureux et illustré
-- SelectionUsagerJournalPage (pros uniquement) : liste d'usagers filtrée par unites_acces, item = avatar 40 px + nom, ligne entière tappable
+- SelectionUsagerJournalPage (pros uniquement) : liste d'usagers filtrée par unitesAcces, item = avatar 40 px + nom + badge si consentement image refusé, ligne entière tappable
 - Navigation Journal de vie : famille = accès direct depuis le footer (un seul usager associé) ; pro = via la page de sélection OU en tapant le nom/avatar d'un usager sur une PublicationCard
-- Profil (version famille) : Infos personnelles, Documents, Paramètres (mot de passe, notifications, confidentialité/RGPD, aide), Déconnexion
+- Profil (version famille) : Infos personnelles, Documents, Paramètres (mot de passe, notifications, confidentialité/RGPD [inclut la modification du consentement image par type de publication], aide), Déconnexion
 
 ## Contraintes et vigilance
 
-- **RGPD et données sensibles** : les données concernent des enfants et adultes en situation de handicap. Aucune donnée réelle pendant le développement. Prévoir dès le départ des règles de sécurité Firestore strictes (jamais de règles ouvertes, même « temporairement »).
+- **RGPD et données sensibles** : les données concernent des enfants et adultes en situation de handicap. Aucune donnée réelle pendant le développement. Prévoir dès le départ des règles de sécurité Firestore strictes (jamais de règles ouvertes, même « temporairement »). Le consentement à l'image est géré par type de publication et ne conditionne jamais l'accès au service (RGPD art. 7§4) — voir « Consentement image ».
 - **Accessibilité** : valeur fondamentale du projet (public TSA notamment). Tailles de texte respectueuses des réglages système, contrastes suffisants, zones tappables généreuses (min 48 px).
 - Ne jamais affirmer de garanties de sécurité invérifiables ; vocabulaire conforme RGPD.
 - Interface intégralement en français.

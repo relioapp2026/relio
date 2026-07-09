@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../models/consent_image.dart';
 import '../models/consultation.dart';
 import '../models/document.dart';
 import '../models/evenement.dart';
@@ -11,53 +12,27 @@ import '../models/visibilite_type.dart';
 import '../theme/app_colors.dart';
 
 /// Données factices partagées le temps que Firestore soit branché.
-/// À terme : usagers filtrés par unites_acces du pro, unités de son
+/// À terme : usagers filtrés par unitesAcces du pro, unités de son
 /// établissement.
 ///
-/// -------------------------------------------------------------------------
-/// CHANTIER 0 / SESSION A — SOURCE UNIFIÉE AVEC IDS STABLES
-/// (+ COMPLÉMENT : fusion du catalogue usagers)
-/// -------------------------------------------------------------------------
 /// [MockUsager] et [MockUnite] forment le modèle de référence (id stable +
-/// attributs), destiné à remplacer à terme les 5 listes qui existaient avant
-/// cette session, toutes basées sur des noms : `mockUsagers` (noms
-/// complets), `mockUnites` (noms d'unité), `mockUnitesAvecFamilles` (une 3e
-/// nomenclature d'unités), `mockUsagersAvecFamilles` (prénoms seuls), et les
-/// usagers imbriqués dans `mockUnitesAvecUsagers`.
+/// attributs). Les usagers sont réunis dans UN SEUL catalogue
+/// (`mockUsagersCatalogue`, ids `usager_001` à `usager_035`) et les unités
+/// dans UN SEUL catalogue (`mockUnitesCatalogue`, ids `unite_001` à
+/// `unite_003` — Proximité/Polyvalence/Orientation, les 3 vraies unités de
+/// l'établissement). Les anciens catalogues séparés `mockUnitesAgendaCatalogue`
+/// (Agenda/Publications) et `mockUnitesFamillesCatalogue`
+/// (Documents/Messages/Profil), avec leurs noms fictifs non coïncidents
+/// ("Unité Papillons" ≠ "Unité Les Papillons"), ont été fusionnés dans ce
+/// catalogue unique.
 ///
-/// Ces 5 symboles existent toujours ci-dessous, avec exactement les mêmes
-/// valeurs qu'avant : ils sont maintenant *dérivés* du catalogue à ids
-/// stables, pour qu'aucun écran non migré ne casse (la migration des écrans
-/// eux-mêmes vers les ids se fait en Session C).
-///
-/// Les usagers sont réunis dans UN SEUL catalogue (`mockUsagersCatalogue`,
-/// ids `usager_001` à `usager_035`) : les 30 usagers historiquement liés à
-/// Documents/Messages/Profil, complétés par les 5 usagers historiquement
-/// utilisés pour Agenda/Publications (`usager_031` à `usager_035`, ex-
-/// `usager_agenda_00X`) — ce sont en réalité les mêmes usagers d'un même
-/// établissement.
-///
-/// CAS DE TEST HOMONYMIE VOLONTAIRE — conservé pour la Session C : deux
-/// entrées distinctes s'appellent "Emma Bernard" (`usager_017`, Unité Les
-/// Papillons, rattachée à `fam_bernard` ; et `usager_032`, Unité Étoiles du
-/// monde Agenda, aucune famille rattachée). Même prénom + nom, ids
-/// différents, unités différentes. Ce couple sert à vérifier en Session C
-/// qu'un filtrage par id (et non par nom) distingue bien les deux personnes
-/// — c'est le bug d'homonymie déjà démontré par l'audit
-/// (`agenda_famille_screen.dart` filtre aujourd'hui par nom, pas par id).
-///
-/// Les UNITÉS, elles, restent dans deux catalogues séparés
-/// (`mockUnitesAgendaCatalogue` pour Agenda/Publications — "Unité
-/// Papillons", etc. ; `mockUnitesFamillesCatalogue` pour
-/// Documents/Messages/Profil — "Unité Les Papillons", etc.) : leurs noms ne
-/// coïncident pas terme à terme (ex. "Unité Papillons" ≠ "Unité Les
-/// Papillons"). Les fusionner sans trancher lesquelles correspondent
-/// vraiment entre elles serait une décision produit, pas une nécessité
-/// technique de ce complément — à voir avec Séb si besoin, avant ou pendant
-/// la Session C.
-/// -------------------------------------------------------------------------
-
-const mockEtablissementId = 'etablissement_horizons';
+/// CAS DE TEST HOMONYMIE VOLONTAIRE — conservé : deux entrées distinctes
+/// s'appellent "Emma Bernard" (`usager_017`, Unité Polyvalence, rattachée à
+/// `fam_bernard` ; et `usager_032`, Unité Orientation, aucune famille
+/// rattachée). Même prénom + nom, ids différents, unités différentes. Ce
+/// couple sert à vérifier qu'un filtrage par id (et non par nom) distingue
+/// bien les deux personnes.
+const mockEtablissementId = 'ime_robert_seguy';
 
 class MockUnite {
   const MockUnite({required this.id, required this.nom, required this.etablissementId});
@@ -77,6 +52,7 @@ class MockUsager {
     required this.age,
     required this.uniteId,
     required this.avatarColor,
+    this.consentImage = const ConsentImage(),
   });
 
   final String id;
@@ -88,37 +64,50 @@ class MockUsager {
   final String uniteId;
   final Color avatarColor;
 
+  /// Autorisation à l'image par type de publication — voir CLAUDE.md,
+  /// section « Consentement image (usagers) ». `const ConsentImage()` par
+  /// défaut : aucun consentement recueilli tant que la famille (ou un
+  /// admin/coordinateur en fallback) n'a pas validé ses choix.
+  final ConsentImage consentImage;
+
   /// Affichage uniquement — ne jamais comparer/filtrer sur cette valeur.
   String get nomComplet => '$prenom $nom';
+
+  MockUsager copyWith({ConsentImage? consentImage}) {
+    return MockUsager(
+      id: id,
+      prenom: prenom,
+      nom: nom,
+      age: age,
+      uniteId: uniteId,
+      avatarColor: avatarColor,
+      consentImage: consentImage ?? this.consentImage,
+    );
+  }
 }
 
-// --- Monde Agenda/Publications ---------------------------------------------
-// Utilisé par CreateEvenementScreen, CreatePublicationScreen et par les
-// `usagersIds`/`uniteId` (en réalité des noms) de `mockEvenements`.
+// --- Unités -------------------------------------------------------------
+// Catalogue unique des 3 vraies unités de l'établissement (remplace les
+// anciens catalogues séparés Agenda/Publications et Documents/Messages/
+// Profil, dont les noms fictifs ne coïncidaient pas terme à terme).
 
-const mockUnitesAgendaCatalogue = [
-  MockUnite(id: 'unite_agenda_papillons', nom: 'Unité Papillons', etablissementId: mockEtablissementId),
-  MockUnite(id: 'unite_agenda_etoiles', nom: 'Unité Étoiles', etablissementId: mockEtablissementId),
-  MockUnite(id: 'unite_agenda_soleil', nom: 'Unité Soleil', etablissementId: mockEtablissementId),
+const mockUnitesCatalogue = [
+  MockUnite(id: 'unite_001', nom: 'Unité Proximité', etablissementId: mockEtablissementId),
+  MockUnite(id: 'unite_002', nom: 'Unité Polyvalence', etablissementId: mockEtablissementId),
+  MockUnite(id: 'unite_003', nom: 'Unité Orientation', etablissementId: mockEtablissementId),
 ];
 
-/// Ids (dans `mockUsagersCatalogue`, voir plus bas) des 5 usagers
-/// historiquement utilisés pour Agenda/Publications — `usager_031` à
-/// `usager_035`. Sert uniquement à dériver `mockUsagers` ci-dessous en
-/// préservant l'ordre d'origine.
-final _uniteIdsAgenda = mockUnitesAgendaCatalogue.map((u) => u.id).toSet();
+/// Noms des 3 unités, pour les sélecteurs (CreatePublicationScreen,
+/// CreateEvenementScreen, envoi de document/message).
+final mockUnites = mockUnitesCatalogue.map((u) => u.nom).toList();
 
-/// Ancienne liste (noms complets) — dérivée du catalogue fusionné, valeurs
-/// identiques à avant : `['Lucas Martin', 'Emma Bernard', 'Nathan Petit',
-/// 'Chloé Rousseau', 'Léo Girard']`.
-final mockUsagers = mockUsagersCatalogue
-    .where((u) => _uniteIdsAgenda.contains(u.uniteId))
-    .map((u) => u.nomComplet)
+/// Sous-ensemble volontairement restreint d'usagers (noms complets) pour le
+/// sélecteur "usager concerné" de CreatePublicationScreen/
+/// CreateEvenementScreen — pas les 35 usagers du catalogue, pour garder ces
+/// listes (recherche individuelle, cases "présents") maniables dans la démo.
+final mockUsagers = const ['usager_031', 'usager_032', 'usager_033', 'usager_034', 'usager_035']
+    .map((id) => findUsagerById(id)!.nomComplet)
     .toList();
-
-/// Ancienne liste (noms d'unité) — dérivée du catalogue, valeurs identiques
-/// à avant : `['Unité Papillons', 'Unité Étoiles', 'Unité Soleil']`.
-final mockUnites = mockUnitesAgendaCatalogue.map((u) => u.nom).toList();
 
 // Dates relatives à "maintenant" pour que les événements factices restent
 // toujours "à venir", quel que soit le jour d'exécution de l'app.
@@ -151,22 +140,22 @@ final mockEvenements = [
   Evenement(
     id: 'evt2',
     titre: 'Atelier cuisine',
-    description: "Préparation d'un goûter avec l'unité Étoiles.",
+    description: "Préparation d'un goûter avec l'unité Orientation.",
     touteLaJournee: false,
     dateDebut: _relative(3, 10, 0),
     dateFin: _relative(3, 11, 30),
     type: VisibiliteType.groupe,
-    uniteConcerneeId: resolveUniteId('Unité Étoiles'),
+    uniteConcerneeId: 'unite_003',
     createdAt: _relative(-1),
   ),
   Evenement(
     id: 'evt3',
     titre: 'Sortie piscine',
-    description: 'Sortie à la piscine municipale avec l\'unité Papillons.',
+    description: 'Sortie à la piscine municipale avec l\'unité Polyvalence.',
     touteLaJournee: true,
     dateDebut: _relative(5),
     type: VisibiliteType.groupe,
-    uniteConcerneeId: resolveUniteId('Unité Papillons'),
+    uniteConcerneeId: 'unite_002',
     createdAt: _relative(-1),
   ),
   Evenement(
@@ -178,20 +167,19 @@ final mockEvenements = [
     type: VisibiliteType.etablissement,
     createdAt: _relative(-1),
   ),
-  // --- Chantier 0 / Session C1 — cas de test homonymie volontaire --------
+  // --- Cas de test homonymie volontaire -----------------------------------
   // Deux événements individuels pour deux usagers différents qui portent
-  // EXACTEMENT le même nom ("Emma Bernard") : usager_017 (Unité Les
-  // Papillons, rattachée à fam_bernard) et usager_032 (Unité Étoiles, monde
-  // Agenda, aucune famille rattachée — voir Session A-bis). Impossible de
-  // les distinguer par nom (`resolveUsagerId('Emma Bernard')` retourne
-  // `null`, ambigu) : `usagersConcernesIds` est donc fixé explicitement ici
-  // avec le bon id, pas résolu depuis un nom. Sert à prouver que
-  // agenda_famille_screen.dart, en filtrant par id, affiche uniquement
-  // l'événement du bon usager.
+  // EXACTEMENT le même nom ("Emma Bernard") : usager_017 (Unité
+  // Polyvalence, rattachée à fam_bernard) et usager_032 (Unité Orientation,
+  // aucune famille rattachée). Impossible de les distinguer par nom
+  // (`resolveUsagerId('Emma Bernard')` retourne `null`, ambigu) :
+  // `usagersConcernesIds` est donc fixé explicitement ici avec le bon id,
+  // pas résolu depuis un nom. Sert à prouver que agenda_famille_screen.dart,
+  // en filtrant par id, affiche uniquement l'événement du bon usager.
   Evenement(
     id: 'evt5',
     titre: 'Rendez-vous orthophonie',
-    description: 'Séance individuelle de suivi avec Emma Bernard (Unité Les Papillons).',
+    description: 'Séance individuelle de suivi avec Emma Bernard (Unité Polyvalence).',
     touteLaJournee: false,
     dateDebut: _relative(4, 15, 0),
     dateFin: _relative(4, 15, 45),
@@ -202,7 +190,7 @@ final mockEvenements = [
   Evenement(
     id: 'evt6',
     titre: 'Séance de kinésithérapie',
-    description: 'Sortie à la piscine municipale avec Emma Bernard (Unité Étoiles, monde Agenda).',
+    description: 'Sortie à la piscine municipale avec Emma Bernard (Unité Orientation).',
     touteLaJournee: false,
     dateDebut: _relative(6, 10, 0),
     dateFin: _relative(6, 11, 0),
@@ -298,75 +286,167 @@ int messagesNonConfirmesPour(String familleUid) {
   }).length;
 }
 
-// --- Monde Documents/Messages/Profil ----------------------------------------
+// --- Usagers --------------------------------------------------------------
 // Utilisé par Profil (Mes unités), UniteDetailScreen, et par `mockFamilles`
-// ci-dessus (les 8 usagers de "Unité Les Papillons" sont volontairement les
-// mêmes que ceux rattachés à une famille, pour rester cohérent avec
-// Documents/Messages).
+// ci-dessus (les 8 usagers de l'Unité Polyvalence rattachés à une famille
+// sont volontairement les mêmes que ceux référencés par Documents/Messages).
 
-const mockUnitesFamillesCatalogue = [
-  MockUnite(id: 'unite_ecureuils', nom: 'Unité Les Écureuils', etablissementId: mockEtablissementId),
-  MockUnite(id: 'unite_papillons', nom: 'Unité Les Papillons', etablissementId: mockEtablissementId),
-  MockUnite(id: 'unite_explorateurs', nom: 'Unité Les Explorateurs', etablissementId: mockEtablissementId),
-];
-
-const mockUsagersCatalogue = [
-  // Unité Les Écureuils
-  MockUsager(id: 'usager_001', prenom: 'Mathis', nom: 'Lambert', age: 9, uniteId: 'unite_ecureuils', avatarColor: AppColors.turquoise),
-  MockUsager(id: 'usager_002', prenom: 'Inès', nom: 'Fabre', age: 7, uniteId: 'unite_ecureuils', avatarColor: AppColors.roseViolet),
-  MockUsager(id: 'usager_003', prenom: 'Enzo', nom: 'Roux', age: 8, uniteId: 'unite_ecureuils', avatarColor: AppColors.marine),
-  MockUsager(id: 'usager_004', prenom: 'Camille', nom: 'Faure', age: 10, uniteId: 'unite_ecureuils', avatarColor: AppColors.turquoise),
-  MockUsager(id: 'usager_005', prenom: 'Adam', nom: 'Blanchard', age: 6, uniteId: 'unite_ecureuils', avatarColor: AppColors.roseViolet),
-  MockUsager(id: 'usager_006', prenom: 'Lina', nom: 'Gauthier', age: 9, uniteId: 'unite_ecureuils', avatarColor: AppColors.marine),
-  MockUsager(id: 'usager_007', prenom: 'Rayan', nom: 'Perrin', age: 8, uniteId: 'unite_ecureuils', avatarColor: AppColors.turquoise),
-  MockUsager(id: 'usager_008', prenom: 'Jade', nom: 'Morel', age: 11, uniteId: 'unite_ecureuils', avatarColor: AppColors.roseViolet),
-  MockUsager(id: 'usager_009', prenom: 'Nolan', nom: 'Barbier', age: 7, uniteId: 'unite_ecureuils', avatarColor: AppColors.marine),
-  MockUsager(id: 'usager_010', prenom: 'Léna', nom: 'Chevalier', age: 9, uniteId: 'unite_ecureuils', avatarColor: AppColors.turquoise),
-  MockUsager(id: 'usager_011', prenom: 'Timéo', nom: 'Vidal', age: 8, uniteId: 'unite_ecureuils', avatarColor: AppColors.roseViolet),
-  MockUsager(id: 'usager_012', prenom: 'Manon', nom: 'Caron', age: 10, uniteId: 'unite_ecureuils', avatarColor: AppColors.marine),
-  // Unité Les Papillons (rattachés à une famille, voir `mockFamilles`)
-  MockUsager(id: 'usager_013', prenom: 'Lucas', nom: 'Dubois', age: 8, uniteId: 'unite_papillons', avatarColor: AppColors.turquoise),
-  MockUsager(id: 'usager_014', prenom: 'Chloé', nom: 'Leroy', age: 7, uniteId: 'unite_papillons', avatarColor: AppColors.roseViolet),
-  MockUsager(id: 'usager_015', prenom: 'Léa', nom: 'Petit', age: 9, uniteId: 'unite_papillons', avatarColor: AppColors.marine),
-  MockUsager(id: 'usager_016', prenom: 'Tom', nom: 'Moreau', age: 6, uniteId: 'unite_papillons', avatarColor: AppColors.turquoise),
+// Plus `const` : quelques usagers ci-dessous ont un `consentImage` explicite
+// dont la date se calcule via `_relative(...)` (non constant), voir Chantier
+// 0 pour la convention "dates relatives, jamais de date calendaire figée".
+// La liste reste mutable pour la même raison qu'un `copyWith`/remplacement
+// par index est nécessaire pour enregistrer le résultat de l'écran de
+// recueil (voir ConsentImageScreen) — même pattern que `mockNotifications`/
+// `mockDocuments`.
+// Répartition des 35 usagers sur les 3 vraies unités : 10 en Proximité
+// (unite_001, usager_001..010), 16 en Polyvalence (unite_002,
+// usager_011..026), 9 en Orientation (unite_003, usager_027..035).
+final List<MockUsager> mockUsagersCatalogue = [
+  // Unité Proximité (unite_001)
+  // Consentement image : tout accepté, saisi par un coordinateur en
+  // fallback — sert à tester le cas "aucun badge affiché".
+  MockUsager(
+    id: 'usager_001',
+    prenom: 'Mathis',
+    nom: 'Lambert',
+    age: 9,
+    uniteId: 'unite_001',
+    avatarColor: AppColors.turquoise,
+    consentImage: ConsentImage(
+      individuelle: true,
+      groupe: true,
+      etablissement: true,
+      dateConsentement: _relative(-30),
+      versionTexte: 'v1',
+      saisiPar: mockProConnecteUid,
+    ),
+  ),
+  // Consentement image : tout refusé explicitement (choix déjà recueilli,
+  // pas seulement la valeur par défaut) — sert à tester le badge sur les
+  // trois types de publication.
+  MockUsager(
+    id: 'usager_002',
+    prenom: 'Inès',
+    nom: 'Fabre',
+    age: 7,
+    uniteId: 'unite_001',
+    avatarColor: AppColors.roseViolet,
+    consentImage: ConsentImage(
+      dateConsentement: _relative(-20),
+      versionTexte: 'v1',
+      saisiPar: mockProConnecteUid,
+    ),
+  ),
+  // Consentement image : mixte (individuelle/établissement acceptés, groupe
+  // refusé) — sert à tester le badge uniquement sur le type de publication
+  // "groupe".
+  MockUsager(
+    id: 'usager_003',
+    prenom: 'Enzo',
+    nom: 'Roux',
+    age: 8,
+    uniteId: 'unite_001',
+    avatarColor: AppColors.marine,
+    consentImage: ConsentImage(
+      individuelle: true,
+      groupe: false,
+      etablissement: true,
+      dateConsentement: _relative(-15),
+      versionTexte: 'v1',
+      saisiPar: mockProConnecteUid,
+    ),
+  ),
+  MockUsager(id: 'usager_004', prenom: 'Camille', nom: 'Faure', age: 10, uniteId: 'unite_001', avatarColor: AppColors.turquoise),
+  MockUsager(id: 'usager_005', prenom: 'Adam', nom: 'Blanchard', age: 6, uniteId: 'unite_001', avatarColor: AppColors.roseViolet),
+  MockUsager(id: 'usager_006', prenom: 'Lina', nom: 'Gauthier', age: 9, uniteId: 'unite_001', avatarColor: AppColors.marine),
+  MockUsager(id: 'usager_007', prenom: 'Rayan', nom: 'Perrin', age: 8, uniteId: 'unite_001', avatarColor: AppColors.turquoise),
+  MockUsager(id: 'usager_008', prenom: 'Jade', nom: 'Morel', age: 11, uniteId: 'unite_001', avatarColor: AppColors.roseViolet),
+  MockUsager(id: 'usager_009', prenom: 'Nolan', nom: 'Barbier', age: 7, uniteId: 'unite_001', avatarColor: AppColors.marine),
+  MockUsager(id: 'usager_010', prenom: 'Léna', nom: 'Chevalier', age: 9, uniteId: 'unite_001', avatarColor: AppColors.turquoise),
+  // Unité Polyvalence (unite_002)
+  MockUsager(id: 'usager_011', prenom: 'Timéo', nom: 'Vidal', age: 8, uniteId: 'unite_002', avatarColor: AppColors.roseViolet),
+  MockUsager(id: 'usager_012', prenom: 'Manon', nom: 'Caron', age: 10, uniteId: 'unite_002', avatarColor: AppColors.marine),
+  // Rattachés à une famille, voir `mockFamilles`.
+  MockUsager(id: 'usager_013', prenom: 'Lucas', nom: 'Dubois', age: 8, uniteId: 'unite_002', avatarColor: AppColors.turquoise),
+  MockUsager(id: 'usager_014', prenom: 'Chloé', nom: 'Leroy', age: 7, uniteId: 'unite_002', avatarColor: AppColors.roseViolet),
+  MockUsager(id: 'usager_015', prenom: 'Léa', nom: 'Petit', age: 9, uniteId: 'unite_002', avatarColor: AppColors.marine),
+  MockUsager(id: 'usager_016', prenom: 'Tom', nom: 'Moreau', age: 6, uniteId: 'unite_002', avatarColor: AppColors.turquoise),
   // CAS DE TEST HOMONYMIE VOLONTAIRE (1/2) — voir aussi usager_032 plus bas :
   // même prénom + nom ("Emma Bernard"), ids différents, unités différentes.
-  MockUsager(id: 'usager_017', prenom: 'Emma', nom: 'Bernard', age: 8, uniteId: 'unite_papillons', avatarColor: AppColors.roseViolet),
-  MockUsager(id: 'usager_018', prenom: 'Hugo', nom: 'Rousseau', age: 10, uniteId: 'unite_papillons', avatarColor: AppColors.marine),
-  MockUsager(id: 'usager_019', prenom: 'Jules', nom: 'Girard', age: 7, uniteId: 'unite_papillons', avatarColor: AppColors.turquoise),
-  MockUsager(id: 'usager_020', prenom: 'Noah', nom: 'Fontaine', age: 9, uniteId: 'unite_papillons', avatarColor: AppColors.roseViolet),
-  // Unité Les Explorateurs
-  MockUsager(id: 'usager_021', prenom: 'Maël', nom: 'Bertrand', age: 9, uniteId: 'unite_explorateurs', avatarColor: AppColors.marine),
-  MockUsager(id: 'usager_022', prenom: 'Lou', nom: 'Renard', age: 7, uniteId: 'unite_explorateurs', avatarColor: AppColors.turquoise),
-  MockUsager(id: 'usager_023', prenom: 'Gabriel', nom: 'Marchand', age: 10, uniteId: 'unite_explorateurs', avatarColor: AppColors.roseViolet),
-  MockUsager(id: 'usager_024', prenom: 'Alice', nom: 'Bonnet', age: 8, uniteId: 'unite_explorateurs', avatarColor: AppColors.marine),
-  MockUsager(id: 'usager_025', prenom: 'Léo', nom: 'Fournier', age: 6, uniteId: 'unite_explorateurs', avatarColor: AppColors.turquoise),
-  MockUsager(id: 'usager_026', prenom: 'Juliette', nom: 'Aubert', age: 9, uniteId: 'unite_explorateurs', avatarColor: AppColors.roseViolet),
-  MockUsager(id: 'usager_027', prenom: 'Nino', nom: 'Dumas', age: 8, uniteId: 'unite_explorateurs', avatarColor: AppColors.marine),
-  MockUsager(id: 'usager_028', prenom: 'Anna', nom: 'Guérin', age: 11, uniteId: 'unite_explorateurs', avatarColor: AppColors.turquoise),
-  MockUsager(id: 'usager_029', prenom: 'Victor', nom: 'Leclerc', age: 7, uniteId: 'unite_explorateurs', avatarColor: AppColors.roseViolet),
-  MockUsager(id: 'usager_030', prenom: 'Rose', nom: 'Meunier', age: 9, uniteId: 'unite_explorateurs', avatarColor: AppColors.marine),
-  // Anciennement "monde Agenda/Publications" (usager_agenda_001..005),
-  // fusionnés ici car ce sont en réalité les mêmes usagers d'un même
-  // établissement. uniteId pointe vers `mockUnitesAgendaCatalogue` — ces
-  // unités restent séparées de celles ci-dessus (voir le commentaire de
-  // fusion en tête de fichier).
-  MockUsager(id: 'usager_031', prenom: 'Lucas', nom: 'Martin', age: 10, uniteId: 'unite_agenda_papillons', avatarColor: AppColors.turquoise),
+  // Consentement image : tout accepté (saisi par la famille fam_bernard) —
+  // volontairement opposé à usager_032 pour prouver que le badge suit l'id,
+  // jamais le nom affiché.
+  MockUsager(
+    id: 'usager_017',
+    prenom: 'Emma',
+    nom: 'Bernard',
+    age: 8,
+    uniteId: 'unite_002',
+    avatarColor: AppColors.roseViolet,
+    consentImage: ConsentImage(
+      individuelle: true,
+      groupe: true,
+      etablissement: true,
+      dateConsentement: _relative(-10),
+      versionTexte: 'v1',
+      saisiPar: 'fam_bernard',
+    ),
+  ),
+  MockUsager(id: 'usager_018', prenom: 'Hugo', nom: 'Rousseau', age: 10, uniteId: 'unite_002', avatarColor: AppColors.marine),
+  MockUsager(id: 'usager_019', prenom: 'Jules', nom: 'Girard', age: 7, uniteId: 'unite_002', avatarColor: AppColors.turquoise),
+  MockUsager(id: 'usager_020', prenom: 'Noah', nom: 'Fontaine', age: 9, uniteId: 'unite_002', avatarColor: AppColors.roseViolet),
+  MockUsager(id: 'usager_021', prenom: 'Maël', nom: 'Bertrand', age: 9, uniteId: 'unite_002', avatarColor: AppColors.marine),
+  MockUsager(id: 'usager_022', prenom: 'Lou', nom: 'Renard', age: 7, uniteId: 'unite_002', avatarColor: AppColors.turquoise),
+  MockUsager(id: 'usager_023', prenom: 'Gabriel', nom: 'Marchand', age: 10, uniteId: 'unite_002', avatarColor: AppColors.roseViolet),
+  MockUsager(id: 'usager_024', prenom: 'Alice', nom: 'Bonnet', age: 8, uniteId: 'unite_002', avatarColor: AppColors.marine),
+  MockUsager(id: 'usager_025', prenom: 'Léo', nom: 'Fournier', age: 6, uniteId: 'unite_002', avatarColor: AppColors.turquoise),
+  MockUsager(id: 'usager_026', prenom: 'Juliette', nom: 'Aubert', age: 9, uniteId: 'unite_002', avatarColor: AppColors.roseViolet),
+  // Unité Orientation (unite_003)
+  MockUsager(id: 'usager_027', prenom: 'Nino', nom: 'Dumas', age: 8, uniteId: 'unite_003', avatarColor: AppColors.marine),
+  MockUsager(id: 'usager_028', prenom: 'Anna', nom: 'Guérin', age: 11, uniteId: 'unite_003', avatarColor: AppColors.turquoise),
+  MockUsager(id: 'usager_029', prenom: 'Victor', nom: 'Leclerc', age: 7, uniteId: 'unite_003', avatarColor: AppColors.roseViolet),
+  MockUsager(id: 'usager_030', prenom: 'Rose', nom: 'Meunier', age: 9, uniteId: 'unite_003', avatarColor: AppColors.marine),
+  // Consentement image : tout accepté — seul cas "sans badge" parmi les 5
+  // usagers historiquement utilisés pour Agenda/Publications (usager_031..
+  // 035), pour pouvoir tester les deux états du badge dans
+  // CreatePublicationScreen.
+  MockUsager(
+    id: 'usager_031',
+    prenom: 'Lucas',
+    nom: 'Martin',
+    age: 10,
+    uniteId: 'unite_003',
+    avatarColor: AppColors.turquoise,
+    consentImage: ConsentImage(
+      individuelle: true,
+      groupe: true,
+      etablissement: true,
+      dateConsentement: _relative(-12),
+      versionTexte: 'v1',
+      saisiPar: mockProConnecteUid,
+    ),
+  ),
   // CAS DE TEST HOMONYMIE VOLONTAIRE (2/2) — homonyme de usager_017
   // ("Emma Bernard" également), aucune famille rattachée, unité différente.
-  MockUsager(id: 'usager_032', prenom: 'Emma', nom: 'Bernard', age: 7, uniteId: 'unite_agenda_etoiles', avatarColor: AppColors.roseViolet),
-  MockUsager(id: 'usager_033', prenom: 'Nathan', nom: 'Petit', age: 9, uniteId: 'unite_agenda_soleil', avatarColor: AppColors.marine),
-  MockUsager(id: 'usager_034', prenom: 'Chloé', nom: 'Rousseau', age: 6, uniteId: 'unite_agenda_papillons', avatarColor: AppColors.turquoise),
-  MockUsager(id: 'usager_035', prenom: 'Léo', nom: 'Girard', age: 8, uniteId: 'unite_agenda_etoiles', avatarColor: AppColors.roseViolet),
+  // Consentement image : tout refusé (saisi par un coordinateur en
+  // fallback, faute de compte famille) — voir le commentaire sur usager_017.
+  MockUsager(
+    id: 'usager_032',
+    prenom: 'Emma',
+    nom: 'Bernard',
+    age: 7,
+    uniteId: 'unite_003',
+    avatarColor: AppColors.roseViolet,
+    consentImage: ConsentImage(
+      dateConsentement: _relative(-5),
+      versionTexte: 'v1',
+      saisiPar: mockProConnecteUid,
+    ),
+  ),
+  MockUsager(id: 'usager_033', prenom: 'Nathan', nom: 'Petit', age: 9, uniteId: 'unite_003', avatarColor: AppColors.marine),
+  MockUsager(id: 'usager_034', prenom: 'Chloé', nom: 'Rousseau', age: 6, uniteId: 'unite_003', avatarColor: AppColors.turquoise),
+  MockUsager(id: 'usager_035', prenom: 'Léo', nom: 'Girard', age: 8, uniteId: 'unite_003', avatarColor: AppColors.roseViolet),
 ];
-
-// Donnée factice : unités utilisées par les écrans Documents/Messages
-// (mêmes noms que la section "Mes unités" du Profil pro).
-//
-// Ancienne liste (noms d'unité) — dérivée du catalogue, valeurs identiques à
-// avant : `['Unité Les Écureuils', 'Unité Les Papillons', 'Unité Les
-// Explorateurs']`.
-final mockUnitesAvecFamilles = mockUnitesFamillesCatalogue.map((u) => u.nom).toList();
 
 /// Prénoms des usagers ayant une famille rattachée (mock). Conservée pour
 /// compatibilité ascendante ; les écrans Documents/Messages utilisent
@@ -401,23 +481,18 @@ class UsagerUnite {
 class UniteAvecUsagers {
   const UniteAvecUsagers({required this.id, required this.nom, required this.usagers});
 
-  /// Chantier 0 / Session C2a — id stable (`mockUnitesFamillesCatalogue`),
-  /// à utiliser pour identifier/naviguer plutôt que sur [nom].
+  /// Id stable (`mockUnitesCatalogue`), à utiliser pour identifier/naviguer
+  /// plutôt que sur [nom].
   final String id;
   final String nom;
   final List<UsagerUnite> usagers;
 }
 
 // Donnée factice : usagers de chaque unité du pro connecté, pour le détail
-// accessible depuis "Mes unités" dans le Profil. "Unité Les Papillons"
-// reprend volontairement les usagers déjà rattachés à une famille dans
+// accessible depuis "Mes unités" dans le Profil. L'Unité Polyvalence
+// contient volontairement les usagers déjà rattachés à une famille dans
 // mockFamilles, pour rester cohérent avec Documents/Messages.
-//
-// Dérivée du catalogue à ids stables (`mockUnitesFamillesCatalogue` /
-// `mockUsagersCatalogue`) — même contenu et même ordre qu'avant. Le filtre
-// par `uniteId` exclut naturellement les usagers fusionnés du monde Agenda
-// (usager_031..035), dont l'uniteId pointe vers `mockUnitesAgendaCatalogue`.
-final mockUnitesAvecUsagers = mockUnitesFamillesCatalogue.map((unite) {
+final mockUnitesAvecUsagers = mockUnitesCatalogue.map((unite) {
   final usagers = mockUsagersCatalogue
       .where((usager) => usager.uniteId == unite.id)
       .map((usager) => UsagerUnite(
@@ -462,17 +537,36 @@ String? resolveUsagerId(String nomOuPrenom) {
 }
 
 /// Résout un nom d'unité (tel que choisi dans l'UI) vers son vrai id
-/// stable, en cherchant dans les deux catalogues d'unités (Agenda et
-/// Documents/Messages/Profil — voir la note de fusion en tête de fichier).
-/// Les deux nomenclatures ne se recoupant jamais en tant que chaînes
-/// exactes, la recherche combinée est sans ambiguïté. Retourne `null` si
-/// aucune unité ne correspond.
+/// stable dans [mockUnitesCatalogue]. Retourne `null` si aucune unité ne
+/// correspond.
 String? resolveUniteId(String nom) {
-  final correspondances = [
-    ...mockUnitesAgendaCatalogue,
-    ...mockUnitesFamillesCatalogue,
-  ].where((u) => u.nom == nom).toList();
+  final correspondances = mockUnitesCatalogue.where((u) => u.nom == nom).toList();
   return correspondances.length == 1 ? correspondances.first.id : null;
+}
+
+/// Cherche un usager par id dans le catalogue fusionné. `null` si absent
+/// (ou si [id] est `null`) — utilisé par le badge de consentement image.
+MockUsager? findUsagerById(String? id) {
+  if (id == null) return null;
+  for (final usager in mockUsagersCatalogue) {
+    if (usager.id == id) return usager;
+  }
+  return null;
+}
+
+/// Vrai si [usagerId] n'a pas d'autorisation image pour [type] — sert à
+/// afficher le badge d'alerte (informatif, jamais bloquant) sur les écrans
+/// de sélection d'usager. Voir CLAUDE.md, section « Consentement image
+/// (usagers) ». Toujours `false` pour `etablissement` (pas de sélection
+/// d'usager sur ce type).
+bool usagerSansAutorisationImage(String? usagerId, {required VisibiliteType type}) {
+  final usager = findUsagerById(usagerId);
+  if (usager == null) return false;
+  return switch (type) {
+    VisibiliteType.individuelle => !usager.consentImage.individuelle,
+    VisibiliteType.groupe => !usager.consentImage.groupe,
+    VisibiliteType.etablissement => false,
+  };
 }
 
 /// Chantier 0 / Session C2b — résout un nom d'auteur de publication/
@@ -606,7 +700,7 @@ final mockDocuments = [
     type: TypeDocument.autorisationSortie,
     description: 'Autorisation pour la sortie au Zoo de la Tête d\'Or le 25 mai de 9h à 16h.',
     portee: VisibiliteType.groupe,
-    uniteId: resolveUniteId('Unité Les Papillons'),
+    uniteId: 'unite_002',
     envoyePar: mockProConnecteUid,
     envoyeParNom: mockProConnecteNom,
     dateEnvoi: _relative(-6, 14, 30),
@@ -712,10 +806,10 @@ final mockMessages = [
   Message(
     id: 'msg2',
     contenu:
-        'Rappel : la sortie piscine de l\'unité Les Papillons aura lieu vendredi prochain, prévoir '
+        'Rappel : la sortie piscine de l\'unité Polyvalence aura lieu vendredi prochain, prévoir '
         'maillot et serviette.',
     portee: VisibiliteType.groupe,
-    uniteConcerneeId: resolveUniteId('Unité Les Papillons'),
+    uniteConcerneeId: 'unite_002',
     expediteurId: mockProConnecteUid,
     expediteurNom: mockProConnecteNom,
     dateEnvoi: _relative(-2, 9, 30),
@@ -757,7 +851,7 @@ final mockNotifications = [
     id: 'notif1',
     type: TypeNotification.nouvellePublication,
     titre: 'Nouvelle publication',
-    description: "Julie Renard a publié dans l'unité Les Papillons.",
+    description: "Julie Renard a publié dans l'unité Polyvalence.",
     cibleId: 'feed',
     cibleType: CibleType.publication,
     destinataireId: mockProConnecteUid,
@@ -797,7 +891,7 @@ final mockNotifications = [
     id: 'notif7',
     type: TypeNotification.nouvelEvenement,
     titre: 'Nouvel événement',
-    description: "Une sortie piscine a été ajoutée pour l'unité Les Papillons.",
+    description: "Une sortie piscine a été ajoutée pour l'unité Polyvalence.",
     cibleId: 'evt3',
     cibleType: CibleType.evenement,
     destinataireId: mockProConnecteUid,

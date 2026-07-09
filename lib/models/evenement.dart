@@ -32,8 +32,8 @@ class Evenement {
   /// homonyme ambigu — voir le cas evt1, "test data à nettoyer" ci-dessus).
   final List<String> usagersConcernesIds;
 
-  /// Id stable (`mockUnitesAgendaCatalogue`, le monde Agenda/Publications)
-  /// de l'unité concernée (portée groupe).
+  /// Id stable (`mockUnitesCatalogue`) de l'unité concernée (portée
+  /// groupe).
   final String? uniteConcerneeId;
 
   final DateTime createdAt;

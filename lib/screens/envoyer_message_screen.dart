@@ -112,7 +112,7 @@ class _EnvoyerMessageScreenState extends State<EnvoyerMessageScreen> {
                         VisibiliteSelector(
                           typeLabel: 'Portée du message',
                           mockUsagers: mockUsagersAvecFamillesNomComplet,
-                          mockUnites: mockUnitesAvecFamilles,
+                          mockUnites: mockUnites,
                           onChanged: (value) => setState(() => _visibilite = value),
                         ),
                         const SizedBox(height: 20),

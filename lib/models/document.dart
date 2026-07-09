@@ -35,8 +35,7 @@ class Document {
   /// `portee == individuelle`.
   final String? usagerId;
 
-  /// Id stable (`mockUnitesFamillesCatalogue`, le monde
-  /// Documents/Messages/Profil). Renseigné uniquement si
+  /// Id stable (`mockUnitesCatalogue`). Renseigné uniquement si
   /// `portee == groupe`.
   final String? uniteId;
 

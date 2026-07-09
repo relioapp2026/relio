@@ -7,7 +7,11 @@
       "Bash(cp \"C:/Users/esteb/Desktop/SEB/RELIO/chartre graphique/Logo/logo_341px_blanc.png\" \"C:/dev/relio/assets/images/logo/logo_blanc.png\")",
       "Bash(cp \"C:/Users/esteb/Desktop/SEB/RELIO/chartre graphique/Logo/logo_341px_blanc_rose.png\" \"C:/dev/relio/assets/images/logo/logo_blanc_rose.png\")",
       "Bash(cp \"C:/Users/esteb/Desktop/SEB/RELIO/chartre graphique/Logo/logo_341px_bleu.png\" \"C:/dev/relio/assets/images/logo/logo_bleu.png\")",
-      "Bash(dart run *)"
+      "Bash(dart run *)",
+      "Bash(echo \"launched in background, PID: $!\")",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)"
     ]
   }
 }

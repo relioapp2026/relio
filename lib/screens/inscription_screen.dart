@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 
+import '../data/mock_data.dart';
 import '../theme/app_colors.dart';
 import '../utils/fade_route.dart';
 import '../widgets/app_logo_header.dart';
 import '../widgets/auth_background.dart';
 import '../widgets/relio_footer.dart';
+import 'consent_image_screen.dart';
 import 'login_screen.dart';
 
 class InscriptionScreen extends StatefulWidget {
@@ -40,12 +42,13 @@ class _InscriptionScreenState extends State<InscriptionScreen> {
   void _handleCreerCompte() {
     if (!_formKey.currentState!.validate()) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Création de compte (à brancher sur Firebase Auth + code d\'invitation)',
-        ),
-      ),
+    // Placeholder en attendant la résolution réelle du code d'invitation
+    // (collection `codes_invitation`, hors périmètre ici) : utilise l'usager
+    // de la famille connectée par convention, comme partout ailleurs dans
+    // les mocks (voir mockFamilleConnecteeUid).
+    final usagerId = mockFamilles[mockFamilleConnecteeUid]!.usagerId;
+    Navigator.of(context).push(
+      fadeRoute(ConsentImageScreen(usagerId: usagerId)),
     );
   }
 

@@ -135,6 +135,7 @@ class _CreatePublicationScreenState extends State<CreatePublicationScreen> {
                           mockUsagers: mockUsagers,
                           mockUnites: mockUnites,
                           onChanged: (value) => setState(() => _visibilite = value),
+                          showConsentBadge: true,
                         ),
                         const SizedBox(height: 20),
                         const SectionLabel('Photos'),

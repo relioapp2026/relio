@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../data/mock_data.dart';
 import '../models/visibilite_type.dart';
 import '../theme/app_colors.dart';
+import 'consent_image_badge.dart';
 import 'section_label.dart';
 
 /// Sélection courante : type de visibilité + usager (individuelle) ou
@@ -34,8 +35,7 @@ class VisibiliteSelection {
   /// `usager_017`/`usager_032` "Emma Bernard").
   final String? usagerConcerneId;
 
-  /// Chantier 0 / Session B — vrai id stable (`mockUnitesAgendaCatalogue`
-  /// ou `mockUnitesFamillesCatalogue` selon la liste fournie au sélecteur),
+  /// Chantier 0 / Session B — vrai id stable (`mockUnitesCatalogue`),
   /// résolu depuis [uniteId] via [resolveUniteId].
   final String? uniteConcerneeId;
 
@@ -54,12 +54,19 @@ class VisibiliteSelector extends StatefulWidget {
     required this.mockUsagers,
     required this.mockUnites,
     required this.onChanged,
+    this.showConsentBadge = false,
   });
 
   final String typeLabel;
   final List<String> mockUsagers;
   final List<String> mockUnites;
   final ValueChanged<VisibiliteSelection> onChanged;
+
+  /// Affiche le badge d'alerte consentement image (voir CLAUDE.md, section
+  /// « Consentement image (usagers) ») à côté de chaque usager sans
+  /// autorisation — pertinent uniquement pour une publication (photos), pas
+  /// pour un événement d'agenda.
+  final bool showConsentBadge;
 
   @override
   State<VisibiliteSelector> createState() => _VisibiliteSelectorState();
@@ -175,6 +182,8 @@ class _VisibiliteSelectorState extends State<VisibiliteSelector> {
       if (_selectedUsager != null) {
         return _SelectedUsagerChip(
           name: _selectedUsager!,
+          sansConsentement: widget.showConsentBadge &&
+              usagerSansAutorisationImage(resolveUsagerId(_selectedUsager!), type: VisibiliteType.individuelle),
           onClear: () => setState(() {
             _selectedUsager = null;
             _notify();
@@ -209,8 +218,11 @@ class _VisibiliteSelectorState extends State<VisibiliteSelector> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: matches.map((name) {
+                  final sansConsentement = widget.showConsentBadge &&
+                      usagerSansAutorisationImage(resolveUsagerId(name), type: VisibiliteType.individuelle);
                   return ListTile(
                     title: Text(name, style: TextStyle(color: AppColors.marine)),
+                    trailing: sansConsentement ? const ConsentImageBadge() : null,
                     onTap: () => setState(() {
                       _selectedUsager = name;
                       _usagerSearchController.clear();
@@ -254,6 +266,8 @@ class _VisibiliteSelectorState extends State<VisibiliteSelector> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: widget.mockUsagers.map((name) {
+              final sansConsentement = widget.showConsentBadge &&
+                  usagerSansAutorisationImage(resolveUsagerId(name), type: VisibiliteType.groupe);
               return CheckboxListTile(
                 value: _groupePresence[name],
                 onChanged: (value) => setState(() {
@@ -261,6 +275,7 @@ class _VisibiliteSelectorState extends State<VisibiliteSelector> {
                   _notify();
                 }),
                 title: Text(name, style: TextStyle(color: AppColors.marine)),
+                subtitle: sansConsentement ? const Align(alignment: Alignment.centerLeft, child: ConsentImageBadge()) : null,
                 activeColor: AppColors.turquoise,
                 controlAffinity: ListTileControlAffinity.leading,
               );
@@ -281,10 +296,15 @@ class _VisibiliteSelectorState extends State<VisibiliteSelector> {
 }
 
 class _SelectedUsagerChip extends StatelessWidget {
-  const _SelectedUsagerChip({required this.name, required this.onClear});
+  const _SelectedUsagerChip({
+    required this.name,
+    required this.onClear,
+    this.sansConsentement = false,
+  });
 
   final String name;
   final VoidCallback onClear;
+  final bool sansConsentement;
 
   @override
   Widget build(BuildContext context) {
@@ -305,9 +325,18 @@ class _SelectedUsagerChip extends StatelessWidget {
               const Icon(Icons.person_outline, color: AppColors.turquoise),
               const SizedBox(width: 10),
               Expanded(
-                child: Text(
-                  name,
-                  style: TextStyle(color: AppColors.marine, fontWeight: FontWeight.w600),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      style: TextStyle(color: AppColors.marine, fontWeight: FontWeight.w600),
+                    ),
+                    if (sansConsentement) ...[
+                      const SizedBox(height: 4),
+                      const ConsentImageBadge(),
+                    ],
+                  ],
                 ),
               ),
               GestureDetector(

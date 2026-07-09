@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../data/mock_data.dart';
+import '../models/visibilite_type.dart';
 import '../theme/app_colors.dart';
 import '../utils/fade_route.dart';
 import '../widgets/auth_background.dart';
+import '../widgets/consent_image_badge.dart';
 import '../widgets/simple_turquoise_header.dart';
 import 'journal_de_vie_screen.dart';
 
@@ -70,6 +73,9 @@ class SelectionUsagerJournalScreen extends StatelessWidget {
                   ),
                   itemBuilder: (context, index) {
                     final usager = _mockUsagersJournal[index];
+                    final sansConsentement =
+                        usagerSansAutorisationImage(usager.id, type: VisibiliteType.individuelle) ||
+                            usagerSansAutorisationImage(usager.id, type: VisibiliteType.groupe);
                     return InkWell(
                       onTap: () {
                         Navigator.of(context).push(
@@ -102,13 +108,22 @@ class SelectionUsagerJournalScreen extends StatelessWidget {
                             ),
                             const SizedBox(width: 16),
                             Expanded(
-                              child: Text(
-                                usager.name,
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w700,
-                                  color: AppColors.marine,
-                                ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    usager.name,
+                                    style: TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w700,
+                                      color: AppColors.marine,
+                                    ),
+                                  ),
+                                  if (sansConsentement) ...[
+                                    const SizedBox(height: 4),
+                                    const ConsentImageBadge(),
+                                  ],
+                                ],
                               ),
                             ),
                             Icon(

@@ -31,9 +31,8 @@ class Message {
   /// uniquement si `portee == individuelle`.
   final List<String> usagersConcernesIds;
 
-  /// Id stable (`mockUnitesFamillesCatalogue`, le monde
-  /// Documents/Messages/Profil) de l'unité concernée. Renseigné uniquement
-  /// si `portee == groupe`.
+  /// Id stable (`mockUnitesCatalogue`) de l'unité concernée. Renseigné
+  /// uniquement si `portee == groupe`.
   final String? uniteConcerneeId;
 
   final String expediteurId;
