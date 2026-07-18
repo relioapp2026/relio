@@ -13,7 +13,7 @@ Relio est une plateforme SaaS mobile connectant les établissements médico-soci
 ## Stack technique
 
 - **Flutter** (Dart), projet neuf — migration depuis un prototype FlutterFlow qui sert de référence visuelle uniquement
-- **Firebase** : Authentication, Firestore (région eur3), Storage (eur4), Cloud Messaging — projet Firebase existant, plan Blaze
+- **Firebase** : Authentication, Firestore (région eur3), Storage (eur4), Cloud Messaging — deux projets distincts, `relio-dev` (développement, tier gratuit Firestore) et un futur projet de production séparé (plan Blaze), pas d'émulateur local (voir « Chantier Back »)
 - État : commencer simple (Provider ou Riverpod), pas d'architecture sur-dimensionnée
 - Environnement : Windows 11, VS Code, Pixel 9a en débogage USB, Chrome pour le web
 
@@ -42,6 +42,26 @@ Relio est une plateforme SaaS mobile connectant les établissements médico-soci
 - Séb a un accès de niveau coordinateur couvrant plusieurs unités
 
 **Rôles :** famille (liée à un ou plusieurs usagers), professionnel (accès par unités), admin établissement.
+
+## Chantier Back (Firebase) — trajectoire actée
+
+**Deux projets Firebase distincts** : `relio-dev` (développement, tier gratuit Firestore — 50k lectures/j, 20k écritures/j, largement suffisant en développement solo) et un futur projet de production séparé (plan Blaze), créé plus tard. Développement en direct contre `relio-dev` — **pas d'émulateur Firebase local** : décision actée (revient sur une version antérieure de ce plan qui prévoyait un émulateur), plus de justification pour un projet solo sans données réelles à protéger à ce stade. Les données restent toujours fictives même une fois `relio-dev` connecté — voir « RGPD et données sensibles » plus bas.
+
+**Phase 0 (révisée, en cours)** : installation Node.js + Firebase CLI + FlutterFire CLI, création du projet `relio-dev`, connexion via `flutterfire configure`. Pas d'émulateur.
+
+**Phase 1** : Auth réelle + collection `users/{uid}` réelle sur `relio-dev`, champ `role` (`famille` | `pro`). C'est à cette phase que `peutDiffuserEtablissement` (bool, `false` par défaut) devient un vrai champ Firestore sur les comptes pro — jusqu'ici mock uniquement, voir « Permission diffusion établissement » plus bas (Item 4 du chantier Cahier de liaison).
+
+**Phases suivantes** : reprennent le découpage déjà validé par collection (publications → agenda → messages → documents → notifications), règles de sécurité testées d'abord sur les cas simples (messages avant documents), notifications câblées au fil de l'eau par fonctionnalité plutôt qu'en bloc final.
+
+**Décisions de modélisation actées, à ne pas perdre :**
+- `users/{uid}` unique avec champ `role` — jamais de split familles/pros en collections séparées (déjà le cas ci-dessus, confirmé).
+- Dénormalisation : `uniteId` et `etablissementId` présents sur tout document de contenu (publications, agenda, documents, messages), quel que soit le type de portée — même si dérivable via l'unité.
+- Publications : jamais de suppression physique — un retrait se fait via `masquee` (bool) + `dateMasquage`, jamais un `delete()`. Édition réservée à l'auteur ; les champs auteur, date, `typePublication` et usagers concernés restent non modifiables après création.
+
+**Sujets ouverts, non bloquants, à ne pas perdre de vue :**
+- Droit à l'effacement RGPD (suppression/anonymisation d'un usager sortant, droit de rectification famille) — pas encore conçu, à traiter avant toute présentation à la direction, pas bloquant pour le MVP interne.
+- Coût réel des `get()` dans les security rules sur les requêtes de liste (feed) — à mesurer concrètement une fois `relio-dev` connecté, pas en théorie.
+- Expiration des codes d'invitation — le champ `dateExpiration` existe déjà dans le modèle mais n'est exploité par aucune règle.
 
 ## Logique métier : les 3 types de publication
 
@@ -99,12 +119,12 @@ Pour la session 1 : données factices (mock) acceptables, la connexion Firestore
 - Catalogue mock des pros créé (`MockPro`/`mockProsCatalogue` dans `mock_data.dart`) : champ `peutDiffuserEtablissement` (bool, `false` par défaut). Deux comptes coordination/direction l'ont à `true`. Positionné manuellement pour le MVP (pas d'interface de gestion avant Relio Admin, Phase 2) — restera vrai également une fois Firestore branché.
 - Chip « Établissement » grisé (désactivé au tap) dans EnvoyerDocumentPage et l'écran message quand le pro connecté a `peutDiffuserEtablissement` à `false`, via le nouveau paramètre `restrictionEtablissementActive` de `VisibiliteSelector` (`false`/absent pour l'agenda et le fil d'actu, comportement inchangé là-bas). Pas de texte d'explication sous le chip — testé puis retiré à la demande de Séb, le grisé seul suffit.
 - Publication établissement (fil d'actu) reste ouverte à tous les pros, sans restriction — décision volontaire (contenu de valorisation institutionnelle, moins sensible qu'une information factuelle type document/message), à réévaluer seulement si abus constaté en usage réel.
-- **Reste à faire (Item 4, hors scope de cette session)** : champ réel `peutDiffuserEtablissement` sur `users/{uid}` en base Firestore + la security rule associée (voir Architecture des données et Contraintes et vigilance) — dépendance stricte, à traiter après la création de ce champ en base, pas avant.
+- **Reste à faire (Item 4, repositionné après la Phase 1 du chantier Back)** : champ réel `peutDiffuserEtablissement` sur `users/{uid}` en base Firestore + la security rule associée (voir Architecture des données, Chantier Back et Contraintes et vigilance) — invérifiable avant que la collection `users/{uid}` réelle existe (Phase 1), donc à ne pas écrire avant.
 
 ## Contraintes et vigilance
 
 - **RGPD et données sensibles** : les données concernent des enfants et adultes en situation de handicap. Aucune donnée réelle pendant le développement. Prévoir dès le départ des règles de sécurité Firestore strictes (jamais de règles ouvertes, même « temporairement »). Le consentement à l'image est géré par type de publication et ne conditionne jamais l'accès au service (RGPD art. 7§4) — voir « Consentement image ». Aucun fichier `firestore.rules` n'existe encore dans le projet à ce stade ; les règles ci-dessous sont prévues, pas encore implémentées.
-- **Règle à ajouter (non commencée, dépend du champ `peutDiffuserEtablissement`)** : sur les collections `documents` et `messages`, refuser toute écriture avec `portee: "etablissement"` si `peutDiffuserEtablissement` n'est pas `true` sur le profil de l'auteur. Réutiliser le pattern `diff().affectedKeys().hasOnly()` déjà documenté dans `docs/brief-technique-consentement-image-invitations.md` pour la règle de consentement image, à adapter ici.
+- **Règle à ajouter (non commencée, dépend du champ `peutDiffuserEtablissement`)** : sur les collections `documents` et `messages`, refuser toute écriture avec `portee: "etablissement"` si `peutDiffuserEtablissement` n'est pas `true` sur le profil de l'auteur. Réutiliser le pattern `diff().affectedKeys().hasOnly()` déjà documenté dans `docs/brief-technique-consentement-image-invitations.md` pour la règle de consentement image, à adapter ici. Invérifiable avant la Phase 1 du chantier Back (pas de collection `users/{uid}` réelle avant ça) — ne pas l'écrire avant.
 - **Accessibilité** : valeur fondamentale du projet (public TSA notamment). Tailles de texte respectueuses des réglages système, contrastes suffisants, zones tappables généreuses (min 48 px).
 - Ne jamais affirmer de garanties de sécurité invérifiables ; vocabulaire conforme RGPD.
 - Interface intégralement en français.
