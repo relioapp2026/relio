@@ -7,6 +7,7 @@ import '../theme/app_colors.dart';
 import '../utils/fade_route.dart';
 import '../widgets/auth_background.dart';
 import '../widgets/simple_turquoise_header.dart';
+import 'envoyer_message_screen.dart';
 import 'message_detail_screen.dart';
 
 const _mois = [
@@ -31,15 +32,22 @@ Color _porteeColor(VisibiliteType type) => switch (type) {
     };
 
 /// Liste des messages envoyés par le pro connecté, avec pour chacun le
-/// suivi des consultations par les familles concernées.
+/// suivi des consultations par les familles concernées. Si [usagerId] est
+/// renseigné (accès depuis le Cahier de liaison d'un usager), la liste est
+/// filtrée aux seuls messages le concernant plutôt qu'à tous les messages
+/// envoyés par le pro.
 class MessagesProScreen extends StatelessWidget {
-  const MessagesProScreen({super.key});
+  const MessagesProScreen({super.key, this.usagerId, this.usagerNom});
+
+  final String? usagerId;
+  final String? usagerNom;
 
   @override
   Widget build(BuildContext context) {
-    final messages = mockMessages
-        .where((message) => message.expediteurId == mockProConnecteUid)
-        .toList()
+    final usagerId = this.usagerId;
+    final messages = (usagerId != null
+        ? messagesPourUsager(usagerId)
+        : mockMessages.where((message) => message.expediteurId == mockProConnecteUid).toList())
       ..sort((a, b) => b.dateEnvoi.compareTo(a.dateEnvoi));
 
     return Scaffold(
@@ -47,17 +55,39 @@ class MessagesProScreen extends StatelessWidget {
       body: SafeArea(
         child: Column(
           children: [
-            const SimpleTurquoiseHeader(title: 'Messages envoyés'),
+            SimpleTurquoiseHeader(
+              title: usagerNom != null ? 'Messagerie' : 'Messages envoyés',
+              subtitle: usagerNom,
+            ),
             Expanded(
-              child: AuthBackground(
-                child: messages.isEmpty
-                    ? _buildEmptyState()
-                    : ListView.separated(
-                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-                        itemCount: messages.length,
-                        separatorBuilder: (_, _) => const SizedBox(height: 12),
-                        itemBuilder: (context, index) => _MessageCard(message: messages[index]),
+              child: Stack(
+                children: [
+                  AuthBackground(
+                    child: messages.isEmpty
+                        ? _buildEmptyState()
+                        : ListView.separated(
+                            padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                            itemCount: messages.length,
+                            separatorBuilder: (_, _) => const SizedBox(height: 12),
+                            itemBuilder: (context, index) => _MessageCard(message: messages[index]),
+                          ),
+                  ),
+                  Positioned(
+                    right: 20,
+                    bottom: 20,
+                    child: SizedBox(
+                      width: 64,
+                      height: 64,
+                      child: FloatingActionButton(
+                        backgroundColor: AppColors.roseViolet,
+                        onPressed: () => Navigator.of(context).push(
+                          fadeRoute(const EnvoyerMessageScreen()),
+                        ),
+                        child: const Icon(Icons.add, color: Colors.white, size: 30),
                       ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -80,7 +110,7 @@ class MessagesProScreen extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             Text(
-              "Vous n'avez envoyé aucun message",
+              usagerNom != null ? 'Aucun message pour le moment' : "Vous n'avez envoyé aucun message",
               textAlign: TextAlign.center,
               style: TextStyle(fontWeight: FontWeight.w700, color: AppColors.marine),
             ),

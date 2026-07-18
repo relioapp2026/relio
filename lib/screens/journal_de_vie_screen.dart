@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 
+import '../data/mock_data.dart';
 import '../theme/app_colors.dart';
 import '../utils/fade_route.dart';
 import '../widgets/auth_background.dart';
 import '../widgets/feed_bottom_nav.dart';
 import '../widgets/simple_turquoise_header.dart';
-import 'agenda_famille_screen.dart';
-import 'agenda_pro_screen.dart';
+import 'cahier_de_liaison_screen.dart';
+import 'feed_famille_screen.dart';
+import 'feed_pro_screen.dart';
 import 'profil_screen.dart';
+import 'selection_usager_journal_screen.dart';
 
 enum _Periode { tout, ceMois, cetteSemaine }
 
@@ -160,12 +163,24 @@ class _JournalDeVieScreenState extends State<JournalDeVieScreen> {
               onTabTap: (tab) {
                 switch (tab) {
                   case FeedNavTab.accueil:
-                    Navigator.of(context).pop();
+                    Navigator.of(context).pushAndRemoveUntil(
+                      fadeRoute(widget.isPro ? const FeedProScreen() : const FeedFamilleScreen()),
+                      (route) => false,
+                    );
                   case FeedNavTab.journalDeVie:
                     break;
-                  case FeedNavTab.agenda:
+                  case FeedNavTab.cahierDeLiaison:
                     Navigator.of(context).pushReplacement(
-                      fadeRoute(widget.isPro ? const AgendaProScreen() : const AgendaFamilleScreen()),
+                      fadeRoute(
+                        widget.isPro
+                            ? const SelectionUsagerJournalScreen(
+                                destination: SelectionUsagerDestination.cahierDeLiaison,
+                              )
+                            : CahierDeLiaisonScreen(
+                                usagerId: mockFamilleConnecteeInfo.usagerId,
+                                usagerName: mockFamilleConnecteeInfo.usagerNomComplet,
+                              ),
+                      ),
                     );
                   case FeedNavTab.profil:
                     Navigator.of(context).pushReplacement(

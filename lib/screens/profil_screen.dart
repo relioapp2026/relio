@@ -6,14 +6,16 @@ import '../utils/fade_route.dart';
 import '../widgets/auth_background.dart';
 import '../widgets/feed_bottom_nav.dart';
 import '../widgets/feed_header.dart';
-import 'agenda_famille_screen.dart';
 import 'agenda_pro_screen.dart';
 import 'aide_support_screen.dart';
+import 'cahier_de_liaison_screen.dart';
 import 'changer_mot_de_passe_screen.dart';
 import 'confidentialite_rgpd_screen.dart';
 import 'documents_famille_screen.dart';
 import 'documents_pro_screen.dart';
 import 'edit_profil_screen.dart';
+import 'feed_famille_screen.dart';
+import 'feed_pro_screen.dart';
 import 'journal_de_vie_screen.dart';
 import 'login_screen.dart';
 import 'messagerie_famille_screen.dart';
@@ -95,14 +97,26 @@ class ProfilScreen extends StatelessWidget {
   void _handleTabTap(BuildContext context, FeedNavTab tab) {
     switch (tab) {
       case FeedNavTab.accueil:
-        Navigator.of(context).pop();
+        Navigator.of(context).pushAndRemoveUntil(
+          fadeRoute(isPro ? const FeedProScreen() : const FeedFamilleScreen()),
+          (route) => false,
+        );
       case FeedNavTab.journalDeVie:
         Navigator.of(context).pushReplacement(
           fadeRoute(isPro ? const SelectionUsagerJournalScreen() : const JournalDeVieScreen()),
         );
-      case FeedNavTab.agenda:
+      case FeedNavTab.cahierDeLiaison:
         Navigator.of(context).pushReplacement(
-          fadeRoute(isPro ? const AgendaProScreen() : const AgendaFamilleScreen()),
+          fadeRoute(
+            isPro
+                ? const SelectionUsagerJournalScreen(
+                    destination: SelectionUsagerDestination.cahierDeLiaison,
+                  )
+                : CahierDeLiaisonScreen(
+                    usagerId: mockFamilleConnecteeInfo.usagerId,
+                    usagerName: mockFamilleConnecteeInfo.usagerNomComplet,
+                  ),
+          ),
         );
       case FeedNavTab.profil:
         break;
@@ -159,6 +173,15 @@ class ProfilScreen extends StatelessWidget {
                           subtitle: 'Voir les messages envoyés',
                           onTap: () => Navigator.of(context).push(
                             fadeRoute(const MessagesProScreen()),
+                          ),
+                        ),
+                      if (isPro)
+                        _MenuTile(
+                          icon: Icons.event_outlined,
+                          label: 'Agenda',
+                          subtitle: 'Voir tous les événements',
+                          onTap: () => Navigator.of(context).push(
+                            fadeRoute(const AgendaProScreen()),
                           ),
                         ),
                     ]),

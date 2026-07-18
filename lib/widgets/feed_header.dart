@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
+import 'count_badge.dart';
 
 /// En-tête turquoise des écrans de feed (famille et pro) : logo, messagerie,
 /// notifications, et bouton "Publier" optionnel (pro uniquement).
@@ -93,24 +94,7 @@ class _HeaderIconButton extends StatelessWidget {
                 Positioned(
                   top: -6,
                   right: -6,
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
-                    decoration: BoxDecoration(
-                      color: AppColors.roseViolet,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: AppColors.turquoise, width: 2),
-                    ),
-                    child: Text(
-                      '$badgeCount',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
+                  child: CountBadge(count: badgeCount),
                 ),
             ],
           ),

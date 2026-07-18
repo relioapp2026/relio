@@ -8,7 +8,6 @@ import '../widgets/feed_bottom_nav.dart';
 import '../widgets/feed_header.dart';
 import '../widgets/notification_style.dart';
 import '../widgets/publication_card.dart';
-import 'agenda_pro_screen.dart';
 import 'create_publication_screen.dart';
 import 'notifications_pro_screen.dart';
 import 'nouvelle_communication_screen.dart';
@@ -32,9 +31,13 @@ class FeedProScreen extends StatelessWidget {
         Navigator.of(context).push(
           fadeRoute(const SelectionUsagerJournalScreen()),
         );
-      case FeedNavTab.agenda:
+      case FeedNavTab.cahierDeLiaison:
         Navigator.of(context).push(
-          fadeRoute(const AgendaProScreen()),
+          fadeRoute(
+            const SelectionUsagerJournalScreen(
+              destination: SelectionUsagerDestination.cahierDeLiaison,
+            ),
+          ),
         );
       case FeedNavTab.profil:
         Navigator.of(context).push(

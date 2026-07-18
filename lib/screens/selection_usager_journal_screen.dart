@@ -7,7 +7,11 @@ import '../utils/fade_route.dart';
 import '../widgets/auth_background.dart';
 import '../widgets/consent_image_badge.dart';
 import '../widgets/simple_turquoise_header.dart';
+import 'cahier_de_liaison_screen.dart';
 import 'journal_de_vie_screen.dart';
+
+/// Sous-page vers laquelle mène la sélection d'un usager.
+enum SelectionUsagerDestination { journalDeVie, cahierDeLiaison }
 
 class _UsagerJournal {
   const _UsagerJournal({
@@ -45,7 +49,12 @@ const _mockUsagersJournal = [
 ];
 
 class SelectionUsagerJournalScreen extends StatelessWidget {
-  const SelectionUsagerJournalScreen({super.key});
+  const SelectionUsagerJournalScreen({
+    super.key,
+    this.destination = SelectionUsagerDestination.journalDeVie,
+  });
+
+  final SelectionUsagerDestination destination;
 
   String _initials(String name) {
     final parts = name.trim().split(RegExp(r'\s+'));
@@ -78,15 +87,28 @@ class SelectionUsagerJournalScreen extends StatelessWidget {
                             usagerSansAutorisationImage(usager.id, type: VisibiliteType.groupe);
                     return InkWell(
                       onTap: () {
+                        if (destination == SelectionUsagerDestination.cahierDeLiaison &&
+                            usager.id == null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Identifiant usager introuvable (donnée de test)')),
+                          );
+                          return;
+                        }
                         Navigator.of(context).push(
                           fadeRoute(
-                            JournalDeVieScreen(
-                              usagerName: usager.name,
-                              usagerId: usager.id,
-                              usagerAge: usager.age,
-                              souvenirsCount: usager.souvenirsCount,
-                              isPro: true,
-                            ),
+                            destination == SelectionUsagerDestination.journalDeVie
+                                ? JournalDeVieScreen(
+                                    usagerName: usager.name,
+                                    usagerId: usager.id,
+                                    usagerAge: usager.age,
+                                    souvenirsCount: usager.souvenirsCount,
+                                    isPro: true,
+                                  )
+                                : CahierDeLiaisonScreen(
+                                    usagerId: usager.id!,
+                                    usagerName: usager.name,
+                                    isPro: true,
+                                  ),
                           ),
                         );
                       },

@@ -4,6 +4,7 @@ import '../theme/app_colors.dart';
 import '../utils/fade_route.dart';
 import '../widgets/auth_background.dart';
 import '../widgets/simple_turquoise_header.dart';
+import 'create_evenement_screen.dart';
 import 'envoyer_document_screen.dart';
 import 'envoyer_message_screen.dart';
 
@@ -42,6 +43,16 @@ class NouvelleCommunicationScreen extends StatelessWidget {
                       subtitle: "Un message texte à une famille, un groupe ou tout l'établissement",
                       onTap: () => Navigator.of(context).push(
                         fadeRoute(const EnvoyerMessageScreen()),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    _ChoixCard(
+                      icon: Icons.event_outlined,
+                      color: AppColors.marine,
+                      title: 'Créer un événement',
+                      subtitle: 'Un rendez-vous ou une sortie pour un usager, une unité ou tout l\'établissement',
+                      onTap: () => Navigator.of(context).push(
+                        fadeRoute(const CreateEvenementScreen()),
                       ),
                     ),
                   ],

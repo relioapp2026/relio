@@ -968,3 +968,75 @@ final mockNotifications = [
 int notificationsNonLuesPour(String destinataireId) {
   return mockNotifications.where((n) => n.destinataireId == destinataireId && !n.lu).length;
 }
+
+// --- Cahier de liaison : filtrage par usager --------------------------
+// Un élément (événement/message/document) "concerne" un usager s'il est
+// individuel et le nomme, de groupe et rattaché à son unité, ou destiné à
+// tout l'établissement. Même logique que le filtrage déjà utilisé dans
+// agenda_famille_screen.dart, généralisée ici pour être partagée par le
+// Cahier de liaison (famille ET pro, tous types de contenus).
+
+List<Evenement> evenementsPourUsager(String usagerId) {
+  final uniteId = findUsagerById(usagerId)?.uniteId;
+  return mockEvenements.where((evenement) {
+    switch (evenement.type) {
+      case VisibiliteType.individuelle:
+        return evenement.usagersConcernesIds.contains(usagerId);
+      case VisibiliteType.groupe:
+        return evenement.uniteConcerneeId == uniteId;
+      case VisibiliteType.etablissement:
+        return true;
+    }
+  }).toList();
+}
+
+List<Message> messagesPourUsager(String usagerId) {
+  final uniteId = findUsagerById(usagerId)?.uniteId;
+  return mockMessages.where((message) {
+    switch (message.portee) {
+      case VisibiliteType.individuelle:
+        return message.usagersConcernesIds.contains(usagerId);
+      case VisibiliteType.groupe:
+        return message.uniteConcerneeId == uniteId;
+      case VisibiliteType.etablissement:
+        return true;
+    }
+  }).toList();
+}
+
+List<Document> documentsPourUsager(String usagerId) {
+  final uniteId = findUsagerById(usagerId)?.uniteId;
+  return mockDocuments.where((document) {
+    switch (document.portee) {
+      case VisibiliteType.individuelle:
+        return document.usagerId == usagerId;
+      case VisibiliteType.groupe:
+        return document.uniteId == uniteId;
+      case VisibiliteType.etablissement:
+        return true;
+    }
+  }).toList();
+}
+
+/// Nombre de messages concernant cet usager que sa famille n'a pas encore
+/// confirmés, pour le badge de la tuile Messagerie du Cahier de liaison.
+int messagesNonConfirmesPourUsager(String usagerId) {
+  final familleUid = familleUidPourUsagerId(usagerId);
+  if (familleUid == null) return 0;
+  return messagesPourUsager(usagerId)
+      .where((message) => !message.confirmationsLecture.any((c) => c.uid == familleUid))
+      .length;
+}
+
+/// Équivalent de [messagesNonConfirmesPourUsager] pour les documents.
+int documentsNonConfirmesPourUsager(String usagerId) {
+  final familleUid = familleUidPourUsagerId(usagerId);
+  if (familleUid == null) return 0;
+  return documentsPourUsager(usagerId)
+      .where((document) => !document.confirmationsLecture.any((c) => c.uid == familleUid))
+      .length;
+}
+
+/// Infos de la famille connectée (mock), pour résoudre son usager rattaché
+/// sans répéter `mockFamilles[mockFamilleConnecteeUid]!` partout.
+FamilleInfo get mockFamilleConnecteeInfo => mockFamilles[mockFamilleConnecteeUid]!;

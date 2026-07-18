@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
 
-enum FeedNavTab { accueil, journalDeVie, agenda, profil }
+enum FeedNavTab { accueil, journalDeVie, cahierDeLiaison, profil }
 
 /// Pied de page turquoise à 4 icônes, commun aux écrans principaux
-/// (Accueil / Journal de vie / Agenda / Profil).
+/// (Accueil / Journal de vie / Cahier de liaison / Profil).
 class FeedBottomNav extends StatelessWidget {
   const FeedBottomNav({super.key, required this.current, this.onTabTap});
 
@@ -41,11 +41,11 @@ class FeedBottomNav extends StatelessWidget {
             onTap: onTabTap,
           ),
           _NavItem(
-            tab: FeedNavTab.agenda,
+            tab: FeedNavTab.cahierDeLiaison,
             current: current,
-            filledIcon: Icons.event,
-            outlinedIcon: Icons.event_outlined,
-            label: 'Agenda',
+            filledIcon: Icons.contact_page,
+            outlinedIcon: Icons.contact_page_outlined,
+            label: 'Cahier de liaison',
             onTap: onTabTap,
           ),
           _NavItem(

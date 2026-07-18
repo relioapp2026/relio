@@ -5,16 +5,18 @@ import '../theme/app_colors.dart';
 import '../utils/fade_route.dart';
 import '../widgets/auth_background.dart';
 import '../widgets/evenement_tile.dart';
-import '../widgets/feed_bottom_nav.dart';
-import '../widgets/feed_header.dart';
+import '../widgets/simple_turquoise_header.dart';
 import 'create_evenement_screen.dart';
-import 'notifications_pro_screen.dart';
-import 'nouvelle_communication_screen.dart';
-import 'profil_screen.dart';
-import 'selection_usager_journal_screen.dart';
 
+/// Agenda du pro connecté. Si [usagerId] est renseigné (accès depuis le
+/// Cahier de liaison d'un usager), la liste est filtrée aux seuls
+/// événements le concernant ; sinon (accès depuis Profil), tous les
+/// événements sont affichés, comme pour les Messages/Documents envoyés.
 class AgendaProScreen extends StatelessWidget {
-  const AgendaProScreen({super.key});
+  const AgendaProScreen({super.key, this.usagerId, this.usagerName});
+
+  final String? usagerId;
+  final String? usagerName;
 
   void _handleCreer(BuildContext context) {
     Navigator.of(context).push(
@@ -22,28 +24,10 @@ class AgendaProScreen extends StatelessWidget {
     );
   }
 
-  void _handleTabTap(BuildContext context, FeedNavTab tab) {
-    switch (tab) {
-      case FeedNavTab.accueil:
-        Navigator.of(context).pop();
-      case FeedNavTab.journalDeVie:
-        Navigator.of(context).pushReplacement(
-          fadeRoute(const SelectionUsagerJournalScreen()),
-        );
-      case FeedNavTab.agenda:
-        break;
-      case FeedNavTab.profil:
-        Navigator.of(context).pushReplacement(
-          fadeRoute(const ProfilScreen(isPro: true)),
-        );
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    // Donnée factice : en production, filtrée côté Firestore par les
-    // unites_acces du pro connecté et triée par date_debut croissante.
-    final evenements = [...mockEvenements]
+    final usagerId = this.usagerId;
+    final evenements = (usagerId != null ? evenementsPourUsager(usagerId) : [...mockEvenements])
       ..sort((a, b) => a.dateDebut.compareTo(b.dateDebut));
 
     return Scaffold(
@@ -51,15 +35,7 @@ class AgendaProScreen extends StatelessWidget {
       body: SafeArea(
         child: Column(
           children: [
-            FeedHeader(
-              notificationCount: notificationsNonLuesPour(mockProConnecteUid),
-              onMessagesTap: () => Navigator.of(context).push(
-                fadeRoute(const NouvelleCommunicationScreen()),
-              ),
-              onNotificationsTap: () => Navigator.of(context).push(
-                fadeRoute(const NotificationsProScreen()),
-              ),
-            ),
+            SimpleTurquoiseHeader(title: 'Agenda', subtitle: usagerName),
             Expanded(
               child: Stack(
                 children: [
@@ -89,10 +65,6 @@ class AgendaProScreen extends StatelessWidget {
                   ),
                 ],
               ),
-            ),
-            FeedBottomNav(
-              current: FeedNavTab.agenda,
-              onTabTap: (tab) => _handleTabTap(context, tab),
             ),
           ],
         ),

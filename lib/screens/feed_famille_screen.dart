@@ -8,7 +8,7 @@ import '../widgets/feed_bottom_nav.dart';
 import '../widgets/feed_header.dart';
 import '../widgets/notification_style.dart';
 import '../widgets/publication_card.dart';
-import 'agenda_famille_screen.dart';
+import 'cahier_de_liaison_screen.dart';
 import 'journal_de_vie_screen.dart';
 import 'messagerie_famille_screen.dart';
 import 'notifications_famille_screen.dart';
@@ -25,9 +25,14 @@ class FeedFamilleScreen extends StatelessWidget {
         Navigator.of(context).push(
           fadeRoute(const JournalDeVieScreen()),
         );
-      case FeedNavTab.agenda:
+      case FeedNavTab.cahierDeLiaison:
         Navigator.of(context).push(
-          fadeRoute(const AgendaFamilleScreen()),
+          fadeRoute(
+            CahierDeLiaisonScreen(
+              usagerId: mockFamilleConnecteeInfo.usagerId,
+              usagerName: mockFamilleConnecteeInfo.usagerNomComplet,
+            ),
+          ),
         );
       case FeedNavTab.profil:
         Navigator.of(context).push(

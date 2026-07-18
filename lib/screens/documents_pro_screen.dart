@@ -8,6 +8,7 @@ import '../utils/fade_route.dart';
 import '../widgets/auth_background.dart';
 import '../widgets/simple_turquoise_header.dart';
 import 'document_detail_screen.dart';
+import 'envoyer_document_screen.dart';
 
 const _mois = [
   'janvier', 'février', 'mars', 'avril', 'mai', 'juin',
@@ -33,15 +34,22 @@ Color _typeColor(TypeDocument type) => switch (type) {
     };
 
 /// Liste des documents envoyés par le pro connecté, avec pour chacun le
-/// suivi des consultations par les familles concernées.
+/// suivi des consultations par les familles concernées. Si [usagerId] est
+/// renseigné (accès depuis le Cahier de liaison d'un usager), la liste est
+/// filtrée aux seuls documents le concernant plutôt qu'à tous les documents
+/// envoyés par le pro.
 class DocumentsProScreen extends StatelessWidget {
-  const DocumentsProScreen({super.key});
+  const DocumentsProScreen({super.key, this.usagerId, this.usagerNom});
+
+  final String? usagerId;
+  final String? usagerNom;
 
   @override
   Widget build(BuildContext context) {
-    final documents = mockDocuments
-        .where((document) => document.envoyePar == mockProConnecteUid)
-        .toList()
+    final usagerId = this.usagerId;
+    final documents = (usagerId != null
+        ? documentsPourUsager(usagerId)
+        : mockDocuments.where((document) => document.envoyePar == mockProConnecteUid).toList())
       ..sort((a, b) => b.dateEnvoi.compareTo(a.dateEnvoi));
 
     return Scaffold(
@@ -49,17 +57,39 @@ class DocumentsProScreen extends StatelessWidget {
       body: SafeArea(
         child: Column(
           children: [
-            const SimpleTurquoiseHeader(title: 'Documents envoyés'),
+            SimpleTurquoiseHeader(
+              title: usagerNom != null ? 'Documents' : 'Documents envoyés',
+              subtitle: usagerNom,
+            ),
             Expanded(
-              child: AuthBackground(
-                child: documents.isEmpty
-                    ? _buildEmptyState()
-                    : ListView.separated(
-                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-                        itemCount: documents.length,
-                        separatorBuilder: (_, _) => const SizedBox(height: 12),
-                        itemBuilder: (context, index) => _DocumentCard(document: documents[index]),
+              child: Stack(
+                children: [
+                  AuthBackground(
+                    child: documents.isEmpty
+                        ? _buildEmptyState()
+                        : ListView.separated(
+                            padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                            itemCount: documents.length,
+                            separatorBuilder: (_, _) => const SizedBox(height: 12),
+                            itemBuilder: (context, index) => _DocumentCard(document: documents[index]),
+                          ),
+                  ),
+                  Positioned(
+                    right: 20,
+                    bottom: 20,
+                    child: SizedBox(
+                      width: 64,
+                      height: 64,
+                      child: FloatingActionButton(
+                        backgroundColor: AppColors.roseViolet,
+                        onPressed: () => Navigator.of(context).push(
+                          fadeRoute(const EnvoyerDocumentScreen()),
+                        ),
+                        child: const Icon(Icons.add, color: Colors.white, size: 30),
                       ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -82,7 +112,7 @@ class DocumentsProScreen extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             Text(
-              "Vous n'avez envoyé aucun document",
+              usagerNom != null ? 'Aucun document pour le moment' : "Vous n'avez envoyé aucun document",
               textAlign: TextAlign.center,
               style: TextStyle(fontWeight: FontWeight.w700, color: AppColors.marine),
             ),
