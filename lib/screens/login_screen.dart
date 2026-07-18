@@ -1,11 +1,13 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import '../services/auth_service.dart';
 import '../theme/app_colors.dart';
 import '../utils/fade_route.dart';
 import '../widgets/app_logo_header.dart';
 import '../widgets/auth_background.dart';
 import '../widgets/relio_footer.dart';
-import 'feed_famille_screen.dart';
+import 'feed_pro_screen.dart';
 import 'mot_de_passe_oublie_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -19,7 +21,10 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _authService = AuthService();
   bool _obscurePassword = true;
+  bool _loading = false;
+  String? _errorMessage;
 
   @override
   void dispose() {
@@ -28,12 +33,30 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  void _handleLogin() {
+  Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
 
-    Navigator.of(context).pushReplacement(
-      fadeRoute(const FeedFamilleScreen()),
-    );
+    setState(() {
+      _loading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      await _authService.signInPro(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+      );
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        fadeRoute(const FeedProScreen()),
+      );
+    } on FirebaseAuthException {
+      setState(() => _errorMessage = 'Email ou mot de passe incorrect.');
+    } on StateError catch (e) {
+      setState(() => _errorMessage = e.message);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   InputDecoration _fieldDecoration({
@@ -163,13 +186,33 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           ),
                         ),
+                        if (_errorMessage != null) ...[
+                          const SizedBox(height: 12),
+                          Text(
+                            _errorMessage!,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: Colors.red,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
                         const SizedBox(height: 20),
                         ElevatedButton(
-                          onPressed: _handleLogin,
+                          onPressed: _loading ? null : _handleLogin,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.turquoise,
                           ),
-                          child: const Text('Se connecter'),
+                          child: _loading
+                              ? const SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.4,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Text('Se connecter'),
                         ),
                       ],
                     ),

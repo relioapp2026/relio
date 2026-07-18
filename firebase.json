@@ -1,1 +1,25 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"relio-dev","appId":"1:764468632722:android:311c2dada25e71e18a1a4b","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"relio-dev","configurations":{"android":"1:764468632722:android:311c2dada25e71e18a1a4b","web":"1:764468632722:web:3f0528d4925dce338a1a4b"}}}}}}
+{
+  "firestore": {
+    "rules": "firestore.rules"
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "relio-dev",
+          "appId": "1:764468632722:android:311c2dada25e71e18a1a4b",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "relio-dev",
+          "configurations": {
+            "android": "1:764468632722:android:311c2dada25e71e18a1a4b",
+            "web": "1:764468632722:web:3f0528d4925dce338a1a4b"
+          }
+        }
+      }
+    }
+  }
+}

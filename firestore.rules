@@ -1,0 +1,18 @@
+rules_version = '2';
+
+// Règles de sécurité Firestore — relio-dev.
+// Par défaut, tout est refusé (aucune règle ouverte, même temporairement —
+// voir CLAUDE.md, section « RGPD et données sensibles »). Chaque collection
+// obtient sa propre règle au fil du chantier back, dans l'ordre déjà acté :
+// users (Phase 1) → publications → agenda → messages → documents →
+// notifications.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // users/{uid} : Phase 1 du chantier Back. Chacun ne peut lire que son
+    // propre document. Pas de règle d'écriture pour l'instant — les comptes
+    // sont créés manuellement via la console pendant le MVP.
+    match /users/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}
