@@ -35,6 +35,7 @@ Relio est une plateforme SaaS mobile connectant les établissements médico-soci
 - Multi-tenant : hiérarchie établissement → unité → usager
 - Convention de nommage des champs Firestore : camelCase (ex. `unitesAcces`, `dateCreation`, `consentImage`)
 - Les professionnels ont une liste `unitesAcces` (unités auxquelles ils ont accès) ; toute liste d'usagers affichée à un pro est filtrée par ses `unitesAcces`
+- Les professionnels ont aussi un champ booléen `peutDiffuserEtablissement` (faux par défaut) qui autorise ou non l'envoi de documents/messages en portée « établissement » — distinct du consentement image, et distinct des publications établissement du fil d'actu qui restent ouvertes à tous les pros sans restriction. Positionné manuellement en base pour le MVP, pas d'interface de gestion. **Non commencé** — voir section « Permission diffusion établissement » plus bas.
 - Création de compte par code d'invitation (collection `codes_invitation` : `role`, `usagerId` ou `unitesAcces` selon le rôle, `etablissementId`, `utilise`, `dateCreation`, `dateExpiration` [toujours `null` au MVP, pas de vérification d'expiration], `creePar`). Rôle famille ou pro rattaché à la collection unique `users` (pas de collections séparées par rôle). Génération des codes au MVP via le script de seed Node.js existant, un code par usager/famille, distribué manuellement par Séb — pas d'écran de génération (reporté à Relio Admin, Phase 2)
 - Chaque usager porte un champ `consentImage` (booléens `individuelle`/`groupe`/`etablissement`, faux par défaut, jamais présumé) qui autorise ou non l'apparition visible de sa photo par type de publication — voir « Consentement image » ci-dessous
 - Routage post-connexion selon le rôle : familles / professionnels / admin
@@ -66,7 +67,7 @@ Les familles autorisent ou refusent la diffusion de la photo de leur enfant, **p
 
 ### Périmètre SESSION 1 — test de validation (ne pas déborder)
 1. **Écran de connexion (Login)** : logo Relio, champs email + mot de passe, bouton connexion rose-violet, lien « Mot de passe oublié », éléments décoratifs vagues/cercles, fond dans l'esprit turquoise
-2. **FeedFamillePage** : header avec logo à gauche + cloche de notifications à droite (pas de titre de page) ; liste de PublicationCard ; footer 4 icônes (Accueil / Journal de vie / Agenda / Profil)
+2. **FeedFamillePage** : header avec logo à gauche + cloche de notifications à droite (pas de titre de page) ; liste de PublicationCard ; footer 4 icônes (Accueil / Journal de vie / Agenda / Profil — footer d'origine, remplacé depuis par Cahier de liaison, voir section « Cahier de liaison » plus bas)
 3. **Composant PublicationCard** : avatar + horodatage, image bord-à-bord hauteur 200 px, rangée like/commentaire avec compteurs, texte, 2 premiers commentaires affichés, bottom sheet pour tous les commentaires (fermeture par swipe vers le bas). Pas de badge de contexte sur les publications.
 
 Pour la session 1 : données factices (mock) acceptables, la connexion Firestore réelle viendra ensuite. Objectif : valider la fidélité visuelle et le workflow avant de migrer le reste.
@@ -80,9 +81,30 @@ Pour la session 1 : données factices (mock) acceptables, la connexion Firestore
 - Navigation Journal de vie : famille = accès direct depuis le footer (un seul usager associé) ; pro = via la page de sélection OU en tapant le nom/avatar d'un usager sur une PublicationCard
 - Profil (version famille) : Infos personnelles, Documents, Paramètres (mot de passe, notifications, confidentialité/RGPD [inclut la modification du consentement image par type de publication], aide), Déconnexion
 
+### Cahier de liaison (construit)
+
+- Remplace le bouton Agenda du footer. Nouveau footer : Accueil / Journal de vie / **Cahier de liaison** / Profil.
+- **CahierDeLiaisonPage** : nouvelle page d'accueil par usager. Header façon JournalDeViePage (bandeau turquoise, nom de l'usager en sous-titre). Flèche retour visible côté pro uniquement (arrive depuis SelectionUsagerJournalPage, filtré par `unitesAcces`) ; absente côté famille (accès direct depuis le footer, un seul usager associé).
+- 3 tuiles à aperçu enrichi, ordre fixe : Messagerie, Agenda, Documents. Chaque tuile : icône + libellé + ligne d'aperçu + badge compteur rouge (réutilise le composant badge déjà utilisé sur la cloche de notifications et les alertes RGPD) + chevron. Toute la carte est tappable, mène vers la sous-page correspondante.
+- Si aucune donnée récente sur une rubrique : pas de badge, texte d'aperçu neutre (ex. « Aucun message récent ») plutôt qu'une ligne vide.
+- Compteurs et aperçus actuellement calculés sur données mock — câblage Firestore réel prévu en phase de migration backend (amélioration future, pas MVP).
+
+### NouvelleCommunicationPage — mise à jour (construit)
+
+- 3e carte ajoutée : « Créer un événement », route vers la logique de création d'événement agenda existante.
+- Les 3 flux (Document / Message rapide / Événement) réutilisent tous le même bloc de sélection destinataire individuel/unité/établissement, structure héritée de CreatePublicationPage.
+
+### Permission diffusion établissement (prochaine session, non commencé)
+
+- À créer : champ `peutDiffuserEtablissement` (bool, `false` par défaut) sur `users/{uid}`, rôle professionnel. Positionné manuellement en base pour le MVP (pas d'interface de gestion avant Relio Admin, Phase 2).
+- Chip « Établissement » grisé dans EnvoyerDocumentPage et l'écran message si `false`, avec texte sous le chip : « Réservé à la coordination/direction ».
+- Publication établissement (fil d'actu) reste ouverte à tous les pros, sans restriction — décision volontaire (contenu de valorisation institutionnelle, moins sensible qu'une information factuelle type document/message), à réévaluer seulement si abus constaté en usage réel.
+- Dépendance stricte : la security rule Firestore associée (voir Architecture des données et Contraintes et vigilance) doit être traitée après la création de ce champ, pas avant.
+
 ## Contraintes et vigilance
 
-- **RGPD et données sensibles** : les données concernent des enfants et adultes en situation de handicap. Aucune donnée réelle pendant le développement. Prévoir dès le départ des règles de sécurité Firestore strictes (jamais de règles ouvertes, même « temporairement »). Le consentement à l'image est géré par type de publication et ne conditionne jamais l'accès au service (RGPD art. 7§4) — voir « Consentement image ».
+- **RGPD et données sensibles** : les données concernent des enfants et adultes en situation de handicap. Aucune donnée réelle pendant le développement. Prévoir dès le départ des règles de sécurité Firestore strictes (jamais de règles ouvertes, même « temporairement »). Le consentement à l'image est géré par type de publication et ne conditionne jamais l'accès au service (RGPD art. 7§4) — voir « Consentement image ». Aucun fichier `firestore.rules` n'existe encore dans le projet à ce stade ; les règles ci-dessous sont prévues, pas encore implémentées.
+- **Règle à ajouter (non commencée, dépend du champ `peutDiffuserEtablissement`)** : sur les collections `documents` et `messages`, refuser toute écriture avec `portee: "etablissement"` si `peutDiffuserEtablissement` n'est pas `true` sur le profil de l'auteur. Réutiliser le pattern `diff().affectedKeys().hasOnly()` déjà documenté dans `docs/brief-technique-consentement-image-invitations.md` pour la règle de consentement image, à adapter ici.
 - **Accessibilité** : valeur fondamentale du projet (public TSA notamment). Tailles de texte respectueuses des réglages système, contrastes suffisants, zones tappables généreuses (min 48 px).
 - Ne jamais affirmer de garanties de sécurité invérifiables ; vocabulaire conforme RGPD.
 - Interface intégralement en français.
