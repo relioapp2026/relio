@@ -94,12 +94,12 @@ Pour la session 1 : données factices (mock) acceptables, la connexion Firestore
 - 3e carte ajoutée : « Créer un événement », route vers la logique de création d'événement agenda existante.
 - Les 3 flux (Document / Message rapide / Événement) réutilisent tous le même bloc de sélection destinataire individuel/unité/établissement, structure héritée de CreatePublicationPage.
 
-### Permission diffusion établissement (prochaine session, non commencé)
+### Permission diffusion établissement (Item 3 construit — mock uniquement)
 
-- À créer : champ `peutDiffuserEtablissement` (bool, `false` par défaut) sur `users/{uid}`, rôle professionnel. Positionné manuellement en base pour le MVP (pas d'interface de gestion avant Relio Admin, Phase 2).
-- Chip « Établissement » grisé dans EnvoyerDocumentPage et l'écran message si `false`, avec texte sous le chip : « Réservé à la coordination/direction ».
+- Catalogue mock des pros créé (`MockPro`/`mockProsCatalogue` dans `mock_data.dart`) : champ `peutDiffuserEtablissement` (bool, `false` par défaut). Deux comptes coordination/direction l'ont à `true`. Positionné manuellement pour le MVP (pas d'interface de gestion avant Relio Admin, Phase 2) — restera vrai également une fois Firestore branché.
+- Chip « Établissement » grisé (désactivé au tap) dans EnvoyerDocumentPage et l'écran message quand le pro connecté a `peutDiffuserEtablissement` à `false`, via le nouveau paramètre `restrictionEtablissementActive` de `VisibiliteSelector` (`false`/absent pour l'agenda et le fil d'actu, comportement inchangé là-bas). Pas de texte d'explication sous le chip — testé puis retiré à la demande de Séb, le grisé seul suffit.
 - Publication établissement (fil d'actu) reste ouverte à tous les pros, sans restriction — décision volontaire (contenu de valorisation institutionnelle, moins sensible qu'une information factuelle type document/message), à réévaluer seulement si abus constaté en usage réel.
-- Dépendance stricte : la security rule Firestore associée (voir Architecture des données et Contraintes et vigilance) doit être traitée après la création de ce champ, pas avant.
+- **Reste à faire (Item 4, hors scope de cette session)** : champ réel `peutDiffuserEtablissement` sur `users/{uid}` en base Firestore + la security rule associée (voir Architecture des données et Contraintes et vigilance) — dépendance stricte, à traiter après la création de ce champ en base, pas avant.
 
 ## Contraintes et vigilance
 

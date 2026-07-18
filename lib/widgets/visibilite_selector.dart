@@ -55,6 +55,7 @@ class VisibiliteSelector extends StatefulWidget {
     required this.mockUnites,
     required this.onChanged,
     this.showConsentBadge = false,
+    this.restrictionEtablissementActive = false,
   });
 
   final String typeLabel;
@@ -67,6 +68,13 @@ class VisibiliteSelector extends StatefulWidget {
   /// autorisation — pertinent uniquement pour une publication (photos), pas
   /// pour un événement d'agenda.
   final bool showConsentBadge;
+
+  /// Si `true`, grise le chip "Établissement" (désactivé au tap) quand le
+  /// pro connecté n'a pas `peutDiffuserEtablissement` — voir CLAUDE.md,
+  /// section « Permission diffusion établissement ». Pertinent uniquement
+  /// pour Document/Message : l'agenda et le fil d'actu (publications)
+  /// restent ouverts à tous les pros, donc ce paramètre y reste à `false`.
+  final bool restrictionEtablissementActive;
 
   @override
   State<VisibiliteSelector> createState() => _VisibiliteSelectorState();
@@ -131,6 +139,9 @@ class _VisibiliteSelectorState extends State<VisibiliteSelector> {
 
   @override
   Widget build(BuildContext context) {
+    final etablissementDesactive =
+        widget.restrictionEtablissementActive && !mockProConnectePeutDiffuserEtablissement;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -142,7 +153,7 @@ class _VisibiliteSelectorState extends State<VisibiliteSelector> {
           children: [
             _buildTypeChip('Individuelle', VisibiliteType.individuelle),
             _buildTypeChip('Unité', VisibiliteType.groupe),
-            _buildTypeChip('Etablissement', VisibiliteType.etablissement),
+            _buildTypeChip('Etablissement', VisibiliteType.etablissement, enabled: !etablissementDesactive),
           ],
         ),
         if (_type != VisibiliteType.etablissement) ...[
@@ -153,23 +164,26 @@ class _VisibiliteSelectorState extends State<VisibiliteSelector> {
     );
   }
 
-  Widget _buildTypeChip(String label, VisibiliteType type) {
+  Widget _buildTypeChip(String label, VisibiliteType type, {bool enabled = true}) {
     final isSelected = _type == type;
+    final chipColor = enabled ? AppColors.turquoise : Colors.grey.shade400;
     return ChoiceChip(
       label: Text(label),
       selected: isSelected,
-      onSelected: (_) => setState(() {
-        _type = type;
-        _notify();
-      }),
+      onSelected: enabled
+          ? (_) => setState(() {
+                _type = type;
+                _notify();
+              })
+          : null,
       showCheckmark: false,
       visualDensity: VisualDensity.compact,
       materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      selectedColor: AppColors.turquoise,
-      backgroundColor: Colors.white,
-      shape: StadiumBorder(side: BorderSide(color: AppColors.turquoise, width: 1.2)),
+      selectedColor: enabled ? AppColors.turquoise : Colors.grey.shade300,
+      backgroundColor: enabled ? Colors.white : Colors.grey.shade200,
+      shape: StadiumBorder(side: BorderSide(color: chipColor, width: 1.2)),
       labelStyle: TextStyle(
-        color: isSelected ? Colors.white : AppColors.turquoise,
+        color: enabled ? (isSelected ? Colors.white : AppColors.turquoise) : Colors.grey.shade600,
         fontWeight: FontWeight.w700,
         fontSize: 13,
       ),

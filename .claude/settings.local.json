@@ -11,7 +11,9 @@
       "Bash(echo \"launched in background, PID: $!\")",
       "Bash(git add *)",
       "Bash(git commit *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(xargs grep -lE \"class UserProfile|class AppUser|class Utilisateur|peutDiffuser\")",
+      "Skill(run)"
     ]
   }
 }

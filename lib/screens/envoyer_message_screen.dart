@@ -114,6 +114,7 @@ class _EnvoyerMessageScreenState extends State<EnvoyerMessageScreen> {
                           mockUsagers: mockUsagersAvecFamillesNomComplet,
                           mockUnites: mockUnites,
                           onChanged: (value) => setState(() => _visibilite = value),
+                          restrictionEtablissementActive: true,
                         ),
                         const SizedBox(height: 20),
                         const SectionLabel('Message'),

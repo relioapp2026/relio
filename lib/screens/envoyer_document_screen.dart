@@ -157,6 +157,7 @@ class _EnvoyerDocumentScreenState extends State<EnvoyerDocumentScreen> {
                           mockUsagers: mockUsagersAvecFamillesNomComplet,
                           mockUnites: mockUnites,
                           onChanged: (value) => setState(() => _visibilite = value),
+                          restrictionEtablissementActive: true,
                         ),
                         const SizedBox(height: 20),
                         const SectionLabel('Type de document'),

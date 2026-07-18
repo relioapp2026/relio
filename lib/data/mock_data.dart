@@ -200,9 +200,59 @@ final mockEvenements = [
   ),
 ];
 
-// Donnée factice : le professionnel connecté (Thomas Martin).
+// --- Professionnels -------------------------------------------------------
+
+class MockPro {
+  const MockPro({
+    required this.id,
+    required this.nom,
+    this.peutDiffuserEtablissement = false,
+  });
+
+  final String id;
+  final String nom;
+
+  /// Autorise la diffusion de documents/messages en portée "établissement"
+  /// — voir CLAUDE.md, section « Permission diffusion établissement ».
+  /// Faux par défaut, positionné manuellement ici pour le MVP (pas
+  /// d'interface de gestion avant Relio Admin, Phase 2). Distinct du
+  /// consentement image et des publications établissement du fil d'actu,
+  /// qui restent ouvertes à tous les pros sans restriction.
+  final bool peutDiffuserEtablissement;
+}
+
+/// Catalogue mock des comptes pro. Deux comptes coordination/direction ont
+/// `peutDiffuserEtablissement` à true, pour valider visuellement les deux
+/// états du chip "Établissement" dans EnvoyerDocumentScreen/
+/// EnvoyerMessageScreen (voir [VisibiliteSelector.restrictionEtablissementActive]).
+const mockProsCatalogue = [
+  MockPro(id: 'pro_martin', nom: 'Thomas Martin'),
+  MockPro(id: 'pro_coulon', nom: 'Séverine Coulon', peutDiffuserEtablissement: true),
+  MockPro(id: 'pro_delattre', nom: 'Marc Delattre', peutDiffuserEtablissement: true),
+];
+
+/// Cherche un pro par id dans le catalogue. `null` si absent.
+MockPro? findProById(String? id) {
+  if (id == null) return null;
+  for (final pro in mockProsCatalogue) {
+    if (pro.id == id) return pro;
+  }
+  return null;
+}
+
+// Donnée factice : le professionnel connecté. Change uniquement l'id
+// ci-dessous pour tester un autre compte du catalogue (ex: 'pro_coulon',
+// coordination) puis relance l'app — le nom et la permission de diffusion
+// établissement suivent automatiquement.
 const mockProConnecteUid = 'pro_martin';
-const mockProConnecteNom = 'Thomas Martin';
+
+String get mockProConnecteNom => findProById(mockProConnecteUid)!.nom;
+
+/// Vrai si le pro connecté peut diffuser en portée établissement
+/// (Document/Message) — voir CLAUDE.md, section « Permission diffusion
+/// établissement ».
+bool get mockProConnectePeutDiffuserEtablissement =>
+    findProById(mockProConnecteUid)!.peutDiffuserEtablissement;
 
 class FamilleInfo {
   const FamilleInfo({required this.nom, required this.usagerId});
