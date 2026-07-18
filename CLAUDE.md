@@ -13,7 +13,7 @@ Relio est une plateforme SaaS mobile connectant les établissements médico-soci
 ## Stack technique
 
 - **Flutter** (Dart), projet neuf — migration depuis un prototype FlutterFlow qui sert de référence visuelle uniquement
-- **Firebase** : Authentication, Firestore (région eur3), Storage (eur4), Cloud Messaging — deux projets distincts, `relio-dev` (développement, tier gratuit Firestore) et un futur projet de production séparé (plan Blaze), pas d'émulateur local (voir « Chantier Back »)
+- **Firebase** : Authentication, Firestore (région eur3), Storage (eur4), Cloud Messaging — deux projets distincts, `relio-dev` (développement, plan Blaze — obligatoire depuis fin 2024 pour activer Storage, mais usage réel en dev solo avec données fictives reste dans le palier gratuit inclus) et un futur projet de production séparé (`relio-618ca`, également Blaze, déjà créé avant le début du chantier Flutter), pas d'émulateur local (voir « Chantier Back »)
 - État : commencer simple (Provider ou Riverpod), pas d'architecture sur-dimensionnée
 - Environnement : Windows 11, VS Code, Pixel 9a en débogage USB, Chrome pour le web
 
@@ -45,9 +45,11 @@ Relio est une plateforme SaaS mobile connectant les établissements médico-soci
 
 ## Chantier Back (Firebase) — trajectoire actée
 
-**Deux projets Firebase distincts** : `relio-dev` (développement, tier gratuit Firestore — 50k lectures/j, 20k écritures/j, largement suffisant en développement solo) et un futur projet de production séparé (plan Blaze), créé plus tard. Développement en direct contre `relio-dev` — **pas d'émulateur Firebase local** : décision actée (revient sur une version antérieure de ce plan qui prévoyait un émulateur), plus de justification pour un projet solo sans données réelles à protéger à ce stade. Les données restent toujours fictives même une fois `relio-dev` connecté — voir « RGPD et données sensibles » plus bas.
+**Deux projets Firebase distincts** : `relio-dev` (développement) et `relio-618ca` (le futur projet de production, déjà créé avant le début du chantier Flutter, sous le nom d'affichage « Relio »). Développement en direct contre `relio-dev` — **pas d'émulateur Firebase local** : décision actée (revient sur une version antérieure de ce plan qui prévoyait un émulateur), plus de justification pour un projet solo sans données réelles à protéger à ce stade. Les données restent toujours fictives même une fois `relio-dev` connecté — voir « RGPD et données sensibles » plus bas.
 
-**Phase 0 (révisée, en cours)** : installation Node.js + Firebase CLI + FlutterFire CLI, création du projet `relio-dev`, connexion via `flutterfire configure`. Pas d'émulateur.
+Les deux projets sont en plan Blaze : Firestore seul reste dans le tier gratuit (Spark), mais Cloud Storage impose Blaze pour tout projet depuis fin 2024 (règle Google, pas un choix produit) — `relio-dev` a donc été passé en Blaze pour pouvoir activer Storage. Le palier gratuit inclus dans Blaze reste largement suffisant pour un usage de développement solo avec données fictives (facture réelle attendue : 0€).
+
+**Phase 0 (terminée)** : Node.js + Firebase CLI + FlutterFire CLI installés, projet `relio-dev` créé (Authentication email/mot de passe, Firestore région eur3, Storage région eur4, tous activés), connecté au projet Flutter via `flutterfire configure` (`lib/firebase_options.dart` généré, apps Android + Web enregistrées — pas d'app iOS, pas de dossier `ios/` pour l'instant). `firebase_core` ajouté aux dépendances et `Firebase.initializeApp()` câblé dans `main.dart`, `flutter analyze` et `flutter build web` passent sans erreur.
 
 **Phase 1** : Auth réelle + collection `users/{uid}` réelle sur `relio-dev`, champ `role` (`famille` | `pro`). C'est à cette phase que `peutDiffuserEtablissement` (bool, `false` par défaut) devient un vrai champ Firestore sur les comptes pro — jusqu'ici mock uniquement, voir « Permission diffusion établissement » plus bas (Item 4 du chantier Cahier de liaison).
 

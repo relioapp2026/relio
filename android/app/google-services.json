@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "764468632722",
+    "project_id": "relio-dev",
+    "storage_bucket": "relio-dev.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:764468632722:android:311c2dada25e71e18a1a4b",
+        "android_client_info": {
+          "package_name": "com.relioapp.relio"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC6eIYz_fXxYFA8u4-ER3CYEqFZvvbeUk0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
