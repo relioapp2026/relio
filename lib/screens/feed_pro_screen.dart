@@ -15,9 +15,14 @@ import 'nouvelle_communication_screen.dart';
 import 'profil_screen.dart';
 import 'selection_usager_journal_screen.dart';
 
-class FeedProScreen extends StatelessWidget {
+class FeedProScreen extends StatefulWidget {
   const FeedProScreen({super.key});
 
+  @override
+  State<FeedProScreen> createState() => _FeedProScreenState();
+}
+
+class _FeedProScreenState extends State<FeedProScreen> {
   void _handlePublish(BuildContext context) {
     Navigator.of(context).push(
       fadeRoute(const CreatePublicationScreen()),
@@ -47,6 +52,13 @@ class FeedProScreen extends StatelessWidget {
     }
   }
 
+  Future<void> _handleNotifications(BuildContext context) async {
+    await Navigator.of(context).push(
+      fadeRoute(const NotificationsProScreen()),
+    );
+    if (mounted) setState(() {});
+  }
+
   @override
   Widget build(BuildContext context) {
     final proUid = AuthService.currentProUser?.uid;
@@ -62,9 +74,7 @@ class FeedProScreen extends StatelessWidget {
               onMessagesTap: () => Navigator.of(context).push(
                 fadeRoute(const NouvelleCommunicationScreen()),
               ),
-              onNotificationsTap: () => Navigator.of(context).push(
-                fadeRoute(const NotificationsProScreen()),
-              ),
+              onNotificationsTap: () => _handleNotifications(context),
             ),
             Expanded(
               child: AuthBackground(
