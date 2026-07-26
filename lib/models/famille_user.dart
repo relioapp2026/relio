@@ -11,6 +11,7 @@ class FamilleUser {
     required this.email,
     required this.etablissementId,
     required this.usagersIds,
+    required this.codeInvitationUtilise,
     required this.dateCreation,
   });
 
@@ -20,6 +21,14 @@ class FamilleUser {
   final String email;
   final String etablissementId;
   final List<String> usagersIds;
+
+  /// Id du document `codes_invitation` utilisé à l'inscription — voir
+  /// CLAUDE.md, section « Architecture des données ». Vérifié par la règle
+  /// Firestore `users/{userId}` (create) au moment de la création du
+  /// compte, jamais modifiable ensuite. Chaîne vide si absent en base
+  /// (comptes famille créés à la main en console avant l'ajout de ce
+  /// champ).
+  final String codeInvitationUtilise;
 
   final DateTime dateCreation;
 
@@ -32,6 +41,7 @@ class FamilleUser {
       email: data['email'] as String,
       etablissementId: data['etablissementId'] as String,
       usagersIds: List<String>.from(data['usagersIds'] as List),
+      codeInvitationUtilise: data['codeInvitationUtilise'] as String? ?? '',
       dateCreation: (data['dateCreation'] as Timestamp).toDate(),
     );
   }

@@ -4,15 +4,40 @@ rules_version = '2';
 // Par défaut, tout est refusé (aucune règle ouverte, même temporairement —
 // voir CLAUDE.md, section « RGPD et données sensibles »). Chaque collection
 // obtient sa propre règle au fil du chantier back, dans l'ordre déjà acté :
-// users (Phase 1) → publications → agenda → messages → documents →
-// notifications.
+// users, codes_invitation (Phase 1) → publications → agenda → messages →
+// documents → notifications.
 service cloud.firestore {
   match /databases/{database}/documents {
     // users/{uid} : Phase 1 du chantier Back. Chacun ne peut lire que son
-    // propre document. Pas de règle d'écriture pour l'instant — les comptes
-    // sont créés manuellement via la console pendant le MVP.
+    // propre document. Création réservée aux comptes famille — les comptes
+    // pro restent créés manuellement via la console pendant le MVP.
+    // L'usager revendiqué (`usagersIds[0]`) doit correspondre à un vrai
+    // code d'invitation existant, pour le même établissement. Aucune
+    // modification cliente après création (update/delete verrouillés).
     match /users/{userId} {
       allow read: if request.auth != null && request.auth.uid == userId;
+
+      allow create: if request.auth != null
+        && request.auth.uid == userId
+        && request.resource.data.role == 'famille'
+        && request.resource.data.usagersIds.size() == 1
+        && exists(/databases/$(database)/documents/codes_invitation/$(request.resource.data.codeInvitationUtilise))
+        && get(/databases/$(database)/documents/codes_invitation/$(request.resource.data.codeInvitationUtilise)).data.usagerId == request.resource.data.usagersIds[0]
+        && get(/databases/$(database)/documents/codes_invitation/$(request.resource.data.codeInvitationUtilise)).data.etablissementId == request.resource.data.etablissementId;
+
+      allow update, delete: if false;
+    }
+
+    // codes_invitation/{codeId} : Phase 1 du chantier Back. Un utilisateur
+    // authentifié peut lire un code précis par son ID (vérification au
+    // moment de l'inscription), mais jamais énumérer la collection —
+    // empêche de découvrir des codes valides par balayage. Aucune écriture
+    // depuis le client : les codes sont créés à la main via la console
+    // pendant le MVP (voir CLAUDE.md, section « Architecture des données »).
+    match /codes_invitation/{codeId} {
+      allow get: if request.auth != null;
+      allow list: if false;
+      allow write: if false;
     }
   }
 }
