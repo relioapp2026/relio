@@ -8,7 +8,7 @@ import '../widgets/app_logo_header.dart';
 import '../widgets/auth_background.dart';
 import '../widgets/consent_toggle_card.dart';
 import '../widgets/relio_footer.dart';
-import 'login_screen.dart';
+import 'feed_famille_screen.dart';
 
 /// Écran de recueil du consentement à l'image, affiché juste après la
 /// création de compte famille par code d'invitation, avant l'accès au reste
@@ -58,7 +58,7 @@ class _ConsentImageScreenState extends State<ConsentImageScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Vos choix ont été enregistrés.')),
     );
-    Navigator.of(context).pushReplacement(fadeRoute(const LoginScreen()));
+    Navigator.of(context).pushReplacement(fadeRoute(const FeedFamilleScreen()));
   }
 
   @override
