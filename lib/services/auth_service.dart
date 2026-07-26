@@ -4,9 +4,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../models/famille_user.dart';
 import '../models/pro_user.dart';
 
-/// Point d'entrée unique pour la connexion et la récupération du profil
-/// utilisateur réel sur `relio-dev`. Seul le rôle "pro" est géré pour
-/// l'instant — voir CLAUDE.md, section « Chantier Back ».
+/// Point d'entrée unique pour la connexion, l'inscription et la
+/// récupération du profil utilisateur réel sur `relio-dev`. Rôles "pro" et
+/// "famille" gérés — voir CLAUDE.md, section « Chantier Back ».
 class AuthService {
   AuthService({FirebaseAuth? auth, FirebaseFirestore? firestore})
       : _auth = auth ?? FirebaseAuth.instance,
@@ -62,6 +62,72 @@ class AuthService {
         return familleUser;
       default:
         throw StateError('Rôle de compte inconnu ou manquant.');
+    }
+  }
+
+  /// Crée un compte famille à partir d'un code d'invitation : compte
+  /// Firebase Auth, puis document `users/{uid}` (`role: "famille"`) peuplé
+  /// avec l'`etablissementId`/`usagerId` trouvés dans
+  /// `codes_invitation/{codeInvitation}` (lecture directe par id — la règle
+  /// Firestore interdit `list`, voir `firestore.rules`). Alimente
+  /// [currentFamilleUser] en cas de succès.
+  ///
+  /// Lève une [FirebaseAuthException] pour les erreurs de création de
+  /// compte classiques (email déjà utilisé, mot de passe trop faible,
+  /// email malformé), ou une [StateError] si le code d'invitation est
+  /// invalide ou si l'écriture du profil échoue (règle refusée, réseau).
+  /// Dans ces deux derniers cas, le compte Auth fraîchement créé est
+  /// supprimé pour ne pas laisser d'orphelin.
+  Future<FamilleUser> signUpFamille({
+    required String nom,
+    required String prenom,
+    required String email,
+    required String password,
+    required String codeInvitation,
+  }) async {
+    final credential = await _auth.createUserWithEmailAndPassword(
+      email: email,
+      password: password,
+    );
+    final user = credential.user!;
+
+    try {
+      final codeDoc = await _firestore.collection('codes_invitation').doc(codeInvitation).get();
+      if (!codeDoc.exists) {
+        throw StateError("Code d'invitation invalide.");
+      }
+
+      final codeData = codeDoc.data()!;
+      final etablissementId = codeData['etablissementId'] as String;
+      final usagerId = codeData['usagerId'] as String;
+
+      await _firestore.collection('users').doc(user.uid).set({
+        'role': 'famille',
+        'nom': nom,
+        'prenom': prenom,
+        'email': email,
+        'etablissementId': etablissementId,
+        'usagersIds': [usagerId],
+        'codeInvitationUtilise': codeInvitation,
+        'dateCreation': FieldValue.serverTimestamp(),
+      });
+
+      final familleUser = FamilleUser(
+        uid: user.uid,
+        nom: nom,
+        prenom: prenom,
+        email: email,
+        etablissementId: etablissementId,
+        usagersIds: [usagerId],
+        codeInvitationUtilise: codeInvitation,
+        dateCreation: DateTime.now(),
+      );
+      currentFamilleUser = familleUser;
+      return familleUser;
+    } catch (e) {
+      await user.delete();
+      if (e is StateError) rethrow;
+      throw StateError('La création du compte a échoué. Merci de réessayer.');
     }
   }
 }

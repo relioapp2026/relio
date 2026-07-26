@@ -1,6 +1,7 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
-import '../data/mock_data.dart';
+import '../services/auth_service.dart';
 import '../theme/app_colors.dart';
 import '../utils/fade_route.dart';
 import '../widgets/app_logo_header.dart';
@@ -24,9 +25,12 @@ class _InscriptionScreenState extends State<InscriptionScreen> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   final _codeController = TextEditingController();
+  final _authService = AuthService();
 
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
+  bool _loading = false;
+  String? _errorMessage;
 
   @override
   void dispose() {
@@ -39,17 +43,46 @@ class _InscriptionScreenState extends State<InscriptionScreen> {
     super.dispose();
   }
 
-  void _handleCreerCompte() {
+  Future<void> _handleCreerCompte() async {
     if (!_formKey.currentState!.validate()) return;
 
-    // Placeholder en attendant la résolution réelle du code d'invitation
-    // (collection `codes_invitation`, hors périmètre ici) : utilise l'usager
-    // de la famille connectée par convention, comme partout ailleurs dans
-    // les mocks (voir mockFamilleConnecteeUid).
-    final usagerId = mockFamilles[mockFamilleConnecteeUid]!.usagerId;
-    Navigator.of(context).push(
-      fadeRoute(ConsentImageScreen(usagerId: usagerId)),
-    );
+    setState(() {
+      _loading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final familleUser = await _authService.signUpFamille(
+        nom: _nomController.text.trim(),
+        prenom: _prenomController.text.trim(),
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+        codeInvitation: _codeController.text.trim(),
+      );
+      if (!mounted) return;
+      Navigator.of(context).push(
+        fadeRoute(ConsentImageScreen(usagerId: familleUser.usagersIds.first)),
+      );
+    } on FirebaseAuthException catch (e) {
+      setState(() => _errorMessage = _authErrorMessage(e));
+    } on StateError catch (e) {
+      setState(() => _errorMessage = e.message);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  String _authErrorMessage(FirebaseAuthException e) {
+    switch (e.code) {
+      case 'email-already-in-use':
+        return 'Cette adresse email est déjà utilisée.';
+      case 'weak-password':
+        return 'Le mot de passe est trop faible (6 caractères minimum).';
+      case 'invalid-email':
+        return "L'adresse email n'est pas valide.";
+      default:
+        return 'Une erreur est survenue. Merci de réessayer.';
+    }
   }
 
   void _handleSeConnecter() {
@@ -271,13 +304,33 @@ class _InscriptionScreenState extends State<InscriptionScreen> {
                             ),
                           ],
                         ),
+                        if (_errorMessage != null) ...[
+                          const SizedBox(height: 12),
+                          Text(
+                            _errorMessage!,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: Colors.red,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
                         const SizedBox(height: 14),
                         ElevatedButton(
-                          onPressed: _handleCreerCompte,
+                          onPressed: _loading ? null : _handleCreerCompte,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.turquoise,
                           ),
-                          child: const Text('Créer mon compte'),
+                          child: _loading
+                              ? const SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.4,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Text('Créer mon compte'),
                         ),
                         const SizedBox(height: 10),
                         Column(
