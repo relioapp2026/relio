@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../data/mock_data.dart';
 import '../models/visibilite_type.dart';
+import '../services/auth_service.dart';
 import '../theme/app_colors.dart';
 import '../utils/fade_route.dart';
 import '../widgets/auth_background.dart';
@@ -62,6 +63,22 @@ class SelectionUsagerJournalScreen extends StatelessWidget {
     return letters.toUpperCase();
   }
 
+  /// Usagers du catalogue factice dont l'unité figure dans les
+  /// `unitesAcces` du pro réellement connecté. Liste vide si personne n'est
+  /// connecté ou si le pro n'a accès à aucune unité. Un `_UsagerJournal`
+  /// sans id résolvable (donnée de test, voir "Léo Martin" ci-dessus) ne
+  /// peut jamais être rattaché à une unité et est donc toujours exclu.
+  List<_UsagerJournal> get _usagersFiltres {
+    final unitesAcces = AuthService.currentProUser?.unitesAcces ?? const <String>[];
+    if (unitesAcces.isEmpty) return const [];
+    return _mockUsagersJournal.where((usager) {
+      final id = usager.id;
+      if (id == null) return false;
+      final mockUsager = findUsagerById(id);
+      return mockUsager != null && unitesAcces.contains(mockUsager.uniteId);
+    }).toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -74,14 +91,14 @@ class SelectionUsagerJournalScreen extends StatelessWidget {
               child: AuthBackground(
                 child: ListView.separated(
                   padding: const EdgeInsets.symmetric(vertical: 8),
-                  itemCount: _mockUsagersJournal.length,
+                  itemCount: _usagersFiltres.length,
                   separatorBuilder: (_, _) => Divider(
                     height: 1,
                     indent: 72,
                     color: AppColors.marine.withValues(alpha: 0.08),
                   ),
                   itemBuilder: (context, index) {
-                    final usager = _mockUsagersJournal[index];
+                    final usager = _usagersFiltres[index];
                     final sansConsentement =
                         usagerSansAutorisationImage(usager.id, type: VisibiliteType.individuelle) ||
                             usagerSansAutorisationImage(usager.id, type: VisibiliteType.groupe);

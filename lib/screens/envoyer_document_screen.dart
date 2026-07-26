@@ -5,6 +5,7 @@ import '../data/mock_data.dart';
 import '../models/document.dart';
 import '../models/type_document.dart';
 import '../models/visibilite_type.dart';
+import '../services/auth_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/auth_background.dart';
 import '../widgets/dashed_border_painter.dart';
@@ -104,6 +105,12 @@ class _EnvoyerDocumentScreenState extends State<EnvoyerDocumentScreen> {
       return;
     }
 
+    final pro = AuthService.currentProUser;
+    if (pro == null) {
+      _showError('Aucun compte professionnel connecté. Reconnectez-vous puis réessayez.');
+      return;
+    }
+
     mockDocuments.insert(
       0,
       Document(
@@ -114,8 +121,8 @@ class _EnvoyerDocumentScreenState extends State<EnvoyerDocumentScreen> {
         portee: _visibilite.type,
         usagerId: _visibilite.type == VisibiliteType.individuelle ? _visibilite.usagerConcerneId : null,
         uniteId: _visibilite.type == VisibiliteType.groupe ? _visibilite.uniteConcerneeId : null,
-        envoyePar: mockProConnecteUid,
-        envoyeParNom: mockProConnecteNom,
+        envoyePar: pro.uid,
+        envoyeParNom: '${pro.prenom} ${pro.nom}',
         dateEnvoi: DateTime.now(),
         fichierUrl: _fichierNom!,
         fichierType: _fichierType,

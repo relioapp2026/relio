@@ -42,7 +42,7 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      await _authService.signInPro(
+      AuthService.currentProUser = await _authService.signInPro(
         email: _emailController.text.trim(),
         password: _passwordController.text,
       );

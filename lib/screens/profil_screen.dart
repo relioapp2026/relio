@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../data/mock_data.dart';
+import '../services/auth_service.dart';
 import '../theme/app_colors.dart';
 import '../utils/fade_route.dart';
 import '../widgets/auth_background.dart';
@@ -34,7 +35,11 @@ class ProfilScreen extends StatelessWidget {
   /// Donnée factice simulant le rôle connecté ("famille" ou "pro").
   final bool isPro;
 
-  String get _nom => isPro ? 'Thomas Martin' : 'Marie Dubois';
+  String get _nom {
+    if (!isPro) return 'Marie Dubois';
+    final pro = AuthService.currentProUser;
+    return pro != null ? '${pro.prenom} ${pro.nom}' : 'Professionnel';
+  }
 
   String _initials(String name) {
     final parts = name.trim().split(RegExp(r'\s+'));

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../data/mock_data.dart';
 import '../models/visibilite_type.dart';
+import '../services/auth_service.dart';
 import '../theme/app_colors.dart';
 import 'consent_image_badge.dart';
 import 'section_label.dart';
@@ -140,7 +141,8 @@ class _VisibiliteSelectorState extends State<VisibiliteSelector> {
   @override
   Widget build(BuildContext context) {
     final etablissementDesactive =
-        widget.restrictionEtablissementActive && !mockProConnectePeutDiffuserEtablissement;
+        widget.restrictionEtablissementActive &&
+        !(AuthService.currentProUser?.peutDiffuserEtablissement ?? false);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,

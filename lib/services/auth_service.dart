@@ -14,6 +14,13 @@ class AuthService {
   final FirebaseAuth _auth;
   final FirebaseFirestore _firestore;
 
+  /// Le [ProUser] actuellement connecté, renseigné par l'appelant après un
+  /// [signInPro] réussi. `null` tant que personne n'est connecté. Les écrans
+  /// pro continuent pour l'instant de lire les mocks de `mock_data.dart` —
+  /// ce champ existe pour que le vrai profil soit disponible, avant de
+  /// migrer chaque écran (voir CLAUDE.md, section « Chantier Back »).
+  static ProUser? currentProUser;
+
   /// Connecte l'utilisateur puis charge son document `users/{uid}`.
   /// Lève une [FirebaseAuthException] si l'email/mot de passe est invalide,
   /// ou une [StateError] si aucun document `users/{uid}` n'existe, ou si

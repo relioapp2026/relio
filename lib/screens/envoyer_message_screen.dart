@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../data/mock_data.dart';
 import '../models/message.dart';
 import '../models/visibilite_type.dart';
+import '../services/auth_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/auth_background.dart';
 import '../widgets/section_label.dart';
@@ -66,6 +67,12 @@ class _EnvoyerMessageScreenState extends State<EnvoyerMessageScreen> {
       return;
     }
 
+    final pro = AuthService.currentProUser;
+    if (pro == null) {
+      _showError('Aucun compte professionnel connecté. Reconnectez-vous puis réessayez.');
+      return;
+    }
+
     mockMessages.insert(
       0,
       Message(
@@ -77,8 +84,8 @@ class _EnvoyerMessageScreenState extends State<EnvoyerMessageScreen> {
                 ? [_visibilite.usagerConcerneId!]
                 : const [],
         uniteConcerneeId: _visibilite.type == VisibiliteType.groupe ? _visibilite.uniteConcerneeId : null,
-        expediteurId: mockProConnecteUid,
-        expediteurNom: mockProConnecteNom,
+        expediteurId: pro.uid,
+        expediteurNom: '${pro.prenom} ${pro.nom}',
         dateEnvoi: DateTime.now(),
         destinatairesUids: destinataires,
       ),

@@ -4,6 +4,7 @@ import '../data/mock_data.dart';
 import '../models/evenement.dart';
 import '../models/notification.dart';
 import '../models/visibilite_type.dart';
+import '../services/auth_service.dart';
 import '../theme/app_colors.dart';
 import '../utils/fade_route.dart';
 import '../widgets/auth_background.dart';
@@ -46,8 +47,11 @@ class _NotificationsProScreenState extends State<NotificationsProScreen> {
   @override
   void initState() {
     super.initState();
-    _notifications = mockNotifications.where((n) => n.destinataireId == mockProConnecteUid).toList()
-      ..sort((a, b) => b.dateCreation.compareTo(a.dateCreation));
+    final proUid = AuthService.currentProUser?.uid;
+    _notifications = (proUid == null
+            ? <AppNotification>[]
+            : mockNotifications.where((n) => n.destinataireId == proUid).toList())
+          ..sort((a, b) => b.dateCreation.compareTo(a.dateCreation));
   }
 
   void _marquerLu(AppNotification notification) {

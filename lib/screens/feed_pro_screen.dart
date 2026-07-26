@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../data/mock_data.dart';
+import '../services/auth_service.dart';
 import '../theme/app_colors.dart';
 import '../utils/fade_route.dart';
 import '../widgets/auth_background.dart';
@@ -48,13 +49,14 @@ class FeedProScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final proUid = AuthService.currentProUser?.uid;
     return Scaffold(
       backgroundColor: AppColors.turquoise,
       body: SafeArea(
         child: Column(
           children: [
             FeedHeader(
-              notificationCount: notificationsNonLuesPour(mockProConnecteUid),
+              notificationCount: proUid == null ? 0 : notificationsNonLuesPour(proUid),
               showPublishButton: true,
               onPublishTap: () => _handlePublish(context),
               onMessagesTap: () => Navigator.of(context).push(

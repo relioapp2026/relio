@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../data/mock_data.dart';
 import '../models/message.dart';
 import '../models/visibilite_type.dart';
+import '../services/auth_service.dart';
 import '../theme/app_colors.dart';
 import '../utils/fade_route.dart';
 import '../widgets/auth_background.dart';
@@ -45,10 +46,13 @@ class MessagesProScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final usagerId = this.usagerId;
+    final proUid = AuthService.currentProUser?.uid;
     final messages = (usagerId != null
-        ? messagesPourUsager(usagerId)
-        : mockMessages.where((message) => message.expediteurId == mockProConnecteUid).toList())
-      ..sort((a, b) => b.dateEnvoi.compareTo(a.dateEnvoi));
+            ? messagesPourUsager(usagerId)
+            : proUid == null
+                ? <Message>[]
+                : mockMessages.where((message) => message.expediteurId == proUid).toList())
+          ..sort((a, b) => b.dateEnvoi.compareTo(a.dateEnvoi));
 
     return Scaffold(
       backgroundColor: AppColors.turquoise,

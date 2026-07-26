@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../data/mock_data.dart';
 import '../models/document.dart';
 import '../models/type_document.dart';
+import '../services/auth_service.dart';
 import '../theme/app_colors.dart';
 import '../utils/fade_route.dart';
 import '../widgets/auth_background.dart';
@@ -47,10 +48,13 @@ class DocumentsProScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final usagerId = this.usagerId;
+    final proUid = AuthService.currentProUser?.uid;
     final documents = (usagerId != null
-        ? documentsPourUsager(usagerId)
-        : mockDocuments.where((document) => document.envoyePar == mockProConnecteUid).toList())
-      ..sort((a, b) => b.dateEnvoi.compareTo(a.dateEnvoi));
+            ? documentsPourUsager(usagerId)
+            : proUid == null
+                ? <Document>[]
+                : mockDocuments.where((document) => document.envoyePar == proUid).toList())
+          ..sort((a, b) => b.dateEnvoi.compareTo(a.dateEnvoi));
 
     return Scaffold(
       backgroundColor: AppColors.turquoise,

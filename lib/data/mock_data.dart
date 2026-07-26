@@ -229,6 +229,7 @@ const mockProsCatalogue = [
   MockPro(id: 'pro_martin', nom: 'Thomas Martin'),
   MockPro(id: 'pro_coulon', nom: 'Séverine Coulon', peutDiffuserEtablissement: true),
   MockPro(id: 'pro_delattre', nom: 'Marc Delattre', peutDiffuserEtablissement: true),
+  MockPro(id: 'greI7Ibic4eZCRNnfFnMCv1pTxw1', nom: 'Esteban', peutDiffuserEtablissement: true),
 ];
 
 /// Cherche un pro par id dans le catalogue. `null` si absent.
@@ -244,7 +245,8 @@ MockPro? findProById(String? id) {
 // ci-dessous pour tester un autre compte du catalogue (ex: 'pro_coulon',
 // coordination) puis relance l'app — le nom et la permission de diffusion
 // établissement suivent automatiquement.
-const mockProConnecteUid = 'pro_martin';
+// TEMPORAIRE - à retirer une fois les écrans migrés vers Firestore réel (mock_data.dart sera retiré dans un chantier ultérieur).
+const mockProConnecteUid = 'greI7Ibic4eZCRNnfFnMCv1pTxw1';
 
 String get mockProConnecteNom => findProById(mockProConnecteUid)!.nom;
 
