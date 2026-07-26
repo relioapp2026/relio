@@ -1,12 +1,14 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import '../models/pro_user.dart';
 import '../services/auth_service.dart';
 import '../theme/app_colors.dart';
 import '../utils/fade_route.dart';
 import '../widgets/app_logo_header.dart';
 import '../widgets/auth_background.dart';
 import '../widgets/relio_footer.dart';
+import 'feed_famille_screen.dart';
 import 'feed_pro_screen.dart';
 import 'mot_de_passe_oublie_screen.dart';
 
@@ -42,13 +44,13 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      AuthService.currentProUser = await _authService.signInPro(
+      final user = await _authService.signIn(
         email: _emailController.text.trim(),
         password: _passwordController.text,
       );
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
-        fadeRoute(const FeedProScreen()),
+        fadeRoute(user is ProUser ? const FeedProScreen() : const FeedFamilleScreen()),
       );
     } on FirebaseAuthException {
       setState(() => _errorMessage = 'Email ou mot de passe incorrect.');
