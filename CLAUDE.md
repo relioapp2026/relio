@@ -69,6 +69,13 @@ Bascule pro/famille validée de bout en bout sur Pixel 9a physique : un compte f
 - **Décision produit actée** : le périmètre du test de validation interne à l'unité de Séb est publications + messagerie, pas publications seule — présenter l'app sans messagerie reviendrait à demander un retour terrain sur un produit qui ne remplace pas encore le carnet.
 - **Documents** (autorisations à signer, etc.) **puis agenda** ensuite, dans cet ordre.
 
+**Cadrage du chantier publications (prochaine session), découpage acté en trois itérations :**
+1. **Publications texte seul** : câblage de la collection `publications`, création depuis `CreatePublicationPage`, affichage dans le feed, filtrage par `unitesAcces`, règles Firestore. Pas de photos à cette étape — séparer la logique de publication de l'upload permet d'isoler la source d'un éventuel problème. Inclut aussi, comme déjà acté précédemment : modifier/masquer une publication (menu « ⋮ » visible uniquement pour l'auteur, soft delete via `masquee` + `dateMasquage`, traçabilité via `modifiee` + `dateModification`).
+2. **Upload photos** : Firebase Storage, règles de sécurité Storage, compression avant upload (une photo brute de Pixel 9a fait 3-5 Mo, volumétrie à surveiller sur le plan Blaze), états de chargement dans l'UI.
+3. **Likes et commentaires** : dépendent des publications déjà existantes, donc après.
+
+**Comptes de test disponibles sur `relio-dev`** pour cette prochaine session : un compte pro (Esteban, 3 unités, `peutDiffuserEtablissement: true`) et un compte famille (KSOS Mama, `usagersIds: ["usager_001"]`) — permettent de tester la boucle complète publication pro → réception famille.
+
 **Décisions de modélisation actées, à ne pas perdre :**
 - `users/{uid}` unique avec champ `role` — jamais de split familles/pros en collections séparées (déjà le cas ci-dessus, confirmé).
 - Dénormalisation : `uniteId` et `etablissementId` présents sur tout document de contenu (publications, agenda, documents, messages), quel que soit le type de portée — même si dérivable via l'unité.
