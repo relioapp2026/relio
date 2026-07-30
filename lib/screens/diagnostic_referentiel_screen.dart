@@ -31,17 +31,30 @@ import '../widgets/simple_turquoise_header.dart';
 class _Resultat<T> {
   const _Resultat.succes(this.valeur)
       : erreur = null,
+        codeErreur = null,
         refusDePermission = false;
-  const _Resultat.echec(this.erreur, {required this.refusDePermission}) : valeur = null;
+  const _Resultat.echec(
+    this.erreur, {
+    required this.refusDePermission,
+    this.codeErreur,
+  }) : valeur = null;
 
   final T? valeur;
   final String? erreur;
+
+  /// Code brut de la [FirebaseException], ex. `permission-denied` ou
+  /// `invalid-argument`. Affiché tel quel à côté du verdict : sans lui, un
+  /// « refusé » se croit sur parole au lieu de se vérifier. C'est ce qui
+  /// distingue un vrai refus de règle d'un rejet pour une autre cause (id
+  /// réservé, réseau, document malformé).
+  final String? codeErreur;
+
   final bool refusDePermission;
 
   bool get enEchec => erreur != null;
 }
 
-/// Exécute [action) en classant l'échec éventuel, sans jamais le propager.
+/// Exécute [action] en classant l'échec éventuel, sans jamais le propager.
 Future<_Resultat<T>> _tenter<T>(Future<T> Function() action) async {
   try {
     return _Resultat.succes(await action());
@@ -49,6 +62,7 @@ Future<_Resultat<T>> _tenter<T>(Future<T> Function() action) async {
     return _Resultat.echec(
       e.toString(),
       refusDePermission: ReferentielService.estRefusDePermission(e),
+      codeErreur: e is FirebaseException ? e.code : null,
     );
   }
 }
@@ -371,12 +385,19 @@ class _DiagnosticReferentielScreenState extends State<DiagnosticReferentielScree
         children: [
           if (resultat == null)
             const Text('Non lancé.')
-          else if (resultat.refusDePermission)
+          else if (resultat.refusDePermission) ...[
             const _Verdict(
               texte: 'Refusé (comportement attendu)',
               couleur: Color(0xFF1B7F4F),
               icone: Icons.check_circle_outline,
-            )
+            ),
+            const SizedBox(height: 6),
+            // Le code brut rend le verdict vérifiable : « permission-denied »
+            // prouve que ce sont bien les règles qui ont refusé, et non un
+            // rejet pour une autre cause (id réservé, réseau, etc.).
+            _Ligne('code Firestore', resultat.codeErreur ?? '(non Firebase)'),
+            _Ligne('id visé', 'usagers/zzz_diagnostic_ecriture'),
+          ]
           else if (resultat.enEchec)
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
