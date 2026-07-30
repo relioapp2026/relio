@@ -1,0 +1,94 @@
+{
+  "_avertissement": "DONNEES STRICTEMENT FICTIVES. Ce fichier est versionne dans Git : l'historique est irreversible. Aucune identite reelle (usager, famille, professionnel) ne doit y figurer, meme temporairement. Seule la STRUCTURE est calquee sur l'effectif reel de l'IME. Voir docs/briefs/brief-R1-referentiel-firestore.md, section 1.",
+  "_anneeReference": 2026,
+  "_note_age": "anneeNaissance est la valeur de reference. Le champ `age` de mockUsagersCatalogue (lib/data/mock_data.dart) en derive : age = _anneeReference - anneeNaissance. Les deux doivent rester coherents.",
+
+  "repartitionAttendue": {
+    "unite_001": 14,
+    "unite_002": 27,
+    "unite_003": 14
+  },
+
+  "defautsUsager": {
+    "photoUrl": null,
+    "actif": true,
+    "consentImage": {
+      "individuelle": false,
+      "groupe": false,
+      "etablissement": false,
+      "dateConsentement": null,
+      "versionTexte": null,
+      "saisiPar": null
+    }
+  },
+
+  "etablissements": [
+    { "id": "etab_001", "nom": "IME Robert Seguy" }
+  ],
+
+  "unites": [
+    { "id": "unite_001", "nom": "Proximité", "etablissementId": "etab_001", "ordre": 1 },
+    { "id": "unite_002", "nom": "Polyvalence", "etablissementId": "etab_001", "ordre": 2 },
+    { "id": "unite_003", "nom": "Orientation", "etablissementId": "etab_001", "ordre": 3 }
+  ],
+
+  "usagers": [
+    { "id": "usager_001", "prenom": "Mathis", "nom": "Lambert", "uniteId": "unite_001", "etablissementId": "etab_001", "anneeNaissance": 2017 },
+    { "id": "usager_002", "prenom": "Inès", "nom": "Fabre", "uniteId": "unite_001", "etablissementId": "etab_001", "anneeNaissance": 2019 },
+    { "id": "usager_003", "prenom": "Enzo", "nom": "Roux", "uniteId": "unite_001", "etablissementId": "etab_001", "anneeNaissance": 2018 },
+    { "id": "usager_004", "prenom": "Camille", "nom": "Faure", "uniteId": "unite_001", "etablissementId": "etab_001", "anneeNaissance": 2016 },
+    { "id": "usager_005", "prenom": "Adam", "nom": "Blanchard", "uniteId": "unite_001", "etablissementId": "etab_001", "anneeNaissance": 2020 },
+    { "id": "usager_006", "prenom": "Lina", "nom": "Gauthier", "uniteId": "unite_001", "etablissementId": "etab_001", "anneeNaissance": 2017 },
+    { "id": "usager_007", "prenom": "Rayan", "nom": "Perrin", "uniteId": "unite_001", "etablissementId": "etab_001", "anneeNaissance": 2018 },
+    { "id": "usager_008", "prenom": "Jade", "nom": "Morel", "uniteId": "unite_001", "etablissementId": "etab_001", "anneeNaissance": 2015 },
+    { "id": "usager_009", "prenom": "Nolan", "nom": "Barbier", "uniteId": "unite_001", "etablissementId": "etab_001", "anneeNaissance": 2019 },
+    { "id": "usager_010", "prenom": "Léna", "nom": "Chevalier", "uniteId": "unite_001", "etablissementId": "etab_001", "anneeNaissance": 2017 },
+    { "id": "usager_036", "prenom": "Sacha", "nom": "Delaunay", "uniteId": "unite_001", "etablissementId": "etab_001", "anneeNaissance": 2021 },
+    { "id": "usager_037", "prenom": "Ambre", "nom": "Colin", "uniteId": "unite_001", "etablissementId": "etab_001", "anneeNaissance": 2014 },
+    { "id": "usager_038", "prenom": "Ethan", "nom": "Masson", "uniteId": "unite_001", "etablissementId": "etab_001", "anneeNaissance": 2020 },
+    { "id": "usager_039", "prenom": "Zoé", "nom": "Legrand", "uniteId": "unite_001", "etablissementId": "etab_001", "anneeNaissance": 2015 },
+
+    { "id": "usager_011", "prenom": "Timéo", "nom": "Vidal", "uniteId": "unite_002", "etablissementId": "etab_001", "anneeNaissance": 2013 },
+    { "id": "usager_012", "prenom": "Manon", "nom": "Caron", "uniteId": "unite_002", "etablissementId": "etab_001", "anneeNaissance": 2012 },
+    { "id": "usager_013", "prenom": "Lucas", "nom": "Dubois", "uniteId": "unite_002", "etablissementId": "etab_001", "anneeNaissance": 2014 },
+    { "id": "usager_014", "prenom": "Chloé", "nom": "Leroy", "uniteId": "unite_002", "etablissementId": "etab_001", "anneeNaissance": 2013 },
+    { "id": "usager_015", "prenom": "Léa", "nom": "Petit", "uniteId": "unite_002", "etablissementId": "etab_001", "anneeNaissance": 2011 },
+    { "id": "usager_016", "prenom": "Tom", "nom": "Moreau", "uniteId": "unite_002", "etablissementId": "etab_001", "anneeNaissance": 2014 },
+    { "id": "usager_017", "prenom": "Emma", "nom": "Bernard", "uniteId": "unite_002", "etablissementId": "etab_001", "anneeNaissance": 2012 },
+    { "id": "usager_018", "prenom": "Hugo", "nom": "Rousseau", "uniteId": "unite_002", "etablissementId": "etab_001", "anneeNaissance": 2010 },
+    { "id": "usager_019", "prenom": "Jules", "nom": "Girard", "uniteId": "unite_002", "etablissementId": "etab_001", "anneeNaissance": 2013 },
+    { "id": "usager_020", "prenom": "Noah", "nom": "Fontaine", "uniteId": "unite_002", "etablissementId": "etab_001", "anneeNaissance": 2011 },
+    { "id": "usager_021", "prenom": "Maël", "nom": "Bertrand", "uniteId": "unite_002", "etablissementId": "etab_001", "anneeNaissance": 2012 },
+    { "id": "usager_022", "prenom": "Lou", "nom": "Renard", "uniteId": "unite_002", "etablissementId": "etab_001", "anneeNaissance": 2014 },
+    { "id": "usager_023", "prenom": "Gabriel", "nom": "Marchand", "uniteId": "unite_002", "etablissementId": "etab_001", "anneeNaissance": 2010 },
+    { "id": "usager_024", "prenom": "Alice", "nom": "Bonnet", "uniteId": "unite_002", "etablissementId": "etab_001", "anneeNaissance": 2013 },
+    { "id": "usager_025", "prenom": "Léo", "nom": "Fournier", "uniteId": "unite_002", "etablissementId": "etab_001", "anneeNaissance": 2014 },
+    { "id": "usager_026", "prenom": "Juliette", "nom": "Aubert", "uniteId": "unite_002", "etablissementId": "etab_001", "anneeNaissance": 2011 },
+    { "id": "usager_040", "prenom": "Yanis", "nom": "Charpentier", "uniteId": "unite_002", "etablissementId": "etab_001", "anneeNaissance": 2014 },
+    { "id": "usager_041", "prenom": "Louna", "nom": "Deschamps", "uniteId": "unite_002", "etablissementId": "etab_001", "anneeNaissance": 2012 },
+    { "id": "usager_042", "prenom": "Ilan", "nom": "Berger", "uniteId": "unite_002", "etablissementId": "etab_001", "anneeNaissance": 2011 },
+    { "id": "usager_043", "prenom": "Maya", "nom": "Lefèvre", "uniteId": "unite_002", "etablissementId": "etab_001", "anneeNaissance": 2013 },
+    { "id": "usager_044", "prenom": "Théo", "nom": "Gaillard", "uniteId": "unite_002", "etablissementId": "etab_001", "anneeNaissance": 2010 },
+    { "id": "usager_045", "prenom": "Sarah", "nom": "Poirier", "uniteId": "unite_002", "etablissementId": "etab_001", "anneeNaissance": 2014 },
+    { "id": "usager_046", "prenom": "Malo", "nom": "Rey", "uniteId": "unite_002", "etablissementId": "etab_001", "anneeNaissance": 2012 },
+    { "id": "usager_047", "prenom": "Elsa", "nom": "Baron", "uniteId": "unite_002", "etablissementId": "etab_001", "anneeNaissance": 2011 },
+    { "id": "usager_048", "prenom": "Kylian", "nom": "Noël", "uniteId": "unite_002", "etablissementId": "etab_001", "anneeNaissance": 2013 },
+    { "id": "usager_049", "prenom": "Norah", "nom": "Vasseur", "uniteId": "unite_002", "etablissementId": "etab_001", "anneeNaissance": 2010 },
+    { "id": "usager_050", "prenom": "Axel", "nom": "Guillot", "uniteId": "unite_002", "etablissementId": "etab_001", "anneeNaissance": 2012 },
+
+    { "id": "usager_027", "prenom": "Nino", "nom": "Dumas", "uniteId": "unite_003", "etablissementId": "etab_001", "anneeNaissance": 2009 },
+    { "id": "usager_028", "prenom": "Anna", "nom": "Guérin", "uniteId": "unite_003", "etablissementId": "etab_001", "anneeNaissance": 2007 },
+    { "id": "usager_029", "prenom": "Victor", "nom": "Leclerc", "uniteId": "unite_003", "etablissementId": "etab_001", "anneeNaissance": 2010 },
+    { "id": "usager_030", "prenom": "Rose", "nom": "Meunier", "uniteId": "unite_003", "etablissementId": "etab_001", "anneeNaissance": 2008 },
+    { "id": "usager_031", "prenom": "Lucas", "nom": "Martin", "uniteId": "unite_003", "etablissementId": "etab_001", "anneeNaissance": 2009 },
+    { "id": "usager_032", "prenom": "Emma", "nom": "Bernard", "uniteId": "unite_003", "etablissementId": "etab_001", "anneeNaissance": 2010 },
+    { "id": "usager_033", "prenom": "Nathan", "nom": "Petit", "uniteId": "unite_003", "etablissementId": "etab_001", "anneeNaissance": 2008 },
+    { "id": "usager_034", "prenom": "Chloé", "nom": "Rousseau", "uniteId": "unite_003", "etablissementId": "etab_001", "anneeNaissance": 2006 },
+    { "id": "usager_035", "prenom": "Léo", "nom": "Girard", "uniteId": "unite_003", "etablissementId": "etab_001", "anneeNaissance": 2007 },
+    { "id": "usager_051", "prenom": "Océane", "nom": "Maillard", "uniteId": "unite_003", "etablissementId": "etab_001", "anneeNaissance": 2010 },
+    { "id": "usager_052", "prenom": "Samuel", "nom": "Bourgeois", "uniteId": "unite_003", "etablissementId": "etab_001", "anneeNaissance": 2008 },
+    { "id": "usager_053", "prenom": "Lilou", "nom": "Perez", "uniteId": "unite_003", "etablissementId": "etab_001", "anneeNaissance": 2006 },
+    { "id": "usager_054", "prenom": "Antoine", "nom": "Schmitt", "uniteId": "unite_003", "etablissementId": "etab_001", "anneeNaissance": 2009 },
+    { "id": "usager_055", "prenom": "Naïa", "nom": "Roussel", "uniteId": "unite_003", "etablissementId": "etab_001", "anneeNaissance": 2007 }
+  ]
+}

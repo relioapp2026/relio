@@ -1,0 +1,6 @@
+{
+  "projects": {
+    "default": "relio-dev",
+    "prod": "relio-618ca"
+  }
+}

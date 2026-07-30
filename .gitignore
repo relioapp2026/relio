@@ -43,3 +43,15 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Node.js (outils de seed, voir tools/seed/)
+node_modules/
+
+# Clés de compte de service Firebase — ne doivent JAMAIS entrer dans le dépôt.
+# La clé du SDK Admin contourne intégralement firestore.rules (voir
+# docs/briefs/brief-R1-referentiel-firestore.md, § Authentification).
+*firebase-adminsdk*.json
+*-sa.json
+serviceAccountKey.json
+tools/seed/*.json
+!tools/seed/data/referentiel.json

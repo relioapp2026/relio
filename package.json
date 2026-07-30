@@ -1,0 +1,12 @@
+{
+  "name": "relio-tools",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Outils Node.js du projet Relio (seed du référentiel Firestore). L'application elle-même est en Flutter/Dart — voir pubspec.yaml.",
+  "scripts": {
+    "seed": "node tools/seed/seed-referentiel.js"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.0.2"
+  }
+}

@@ -17,7 +17,7 @@ import '../theme/app_colors.dart';
 ///
 /// [MockUsager] et [MockUnite] forment le modèle de référence (id stable +
 /// attributs). Les usagers sont réunis dans UN SEUL catalogue
-/// (`mockUsagersCatalogue`, ids `usager_001` à `usager_035`) et les unités
+/// (`mockUsagersCatalogue`, ids `usager_001` à `usager_055`) et les unités
 /// dans UN SEUL catalogue (`mockUnitesCatalogue`, ids `unite_001` à
 /// `unite_003` — Proximité/Polyvalence/Orientation, les 3 vraies unités de
 /// l'établissement). Les anciens catalogues séparés `mockUnitesAgendaCatalogue`
@@ -32,7 +32,13 @@ import '../theme/app_colors.dart';
 /// rattachée). Même prénom + nom, ids différents, unités différentes. Ce
 /// couple sert à vérifier qu'un filtrage par id (et non par nom) distingue
 /// bien les deux personnes.
-const mockEtablissementId = 'ime_robert_seguy';
+///
+/// Chantier Référentiel / R1 — ce catalogue est désormais le miroir Dart de
+/// `tools/seed/data/referentiel.json`, qui peuple les collections Firestore
+/// `etablissements`/`unites`/`usagers`. Les deux doivent rester cohérents
+/// (mêmes ids, mêmes noms, mêmes unités) jusqu'au débranchement des écrans
+/// en R3.
+const mockEtablissementId = 'etab_001';
 
 class MockUnite {
   const MockUnite({required this.id, required this.nom, required this.etablissementId});
@@ -91,10 +97,13 @@ class MockUsager {
 // anciens catalogues séparés Agenda/Publications et Documents/Messages/
 // Profil, dont les noms fictifs ne coïncidaient pas terme à terme).
 
+// Chantier Référentiel / R1 — le préfixe "Unité " a été retiré des libellés :
+// `nom` est la seule source du libellé affiché, et aucun écran ne doit
+// concaténer "Unité " devant. Valeurs alignées sur `referentiel.json`.
 const mockUnitesCatalogue = [
-  MockUnite(id: 'unite_001', nom: 'Unité Proximité', etablissementId: mockEtablissementId),
-  MockUnite(id: 'unite_002', nom: 'Unité Polyvalence', etablissementId: mockEtablissementId),
-  MockUnite(id: 'unite_003', nom: 'Unité Orientation', etablissementId: mockEtablissementId),
+  MockUnite(id: 'unite_001', nom: 'Proximité', etablissementId: mockEtablissementId),
+  MockUnite(id: 'unite_002', nom: 'Polyvalence', etablissementId: mockEtablissementId),
+  MockUnite(id: 'unite_003', nom: 'Orientation', etablissementId: mockEtablissementId),
 ];
 
 /// Noms des 3 unités, pour les sélecteurs (CreatePublicationScreen,
@@ -350,9 +359,25 @@ int messagesNonConfirmesPour(String familleUid) {
 // par index est nécessaire pour enregistrer le résultat de l'écran de
 // recueil (voir ConsentImageScreen) — même pattern que `mockNotifications`/
 // `mockDocuments`.
-// Répartition des 35 usagers sur les 3 vraies unités : 10 en Proximité
-// (unite_001, usager_001..010), 16 en Polyvalence (unite_002,
-// usager_011..026), 9 en Orientation (unite_003, usager_027..035).
+// Chantier Référentiel / R1 — répartition des 55 usagers sur les 3 unités,
+// alignée sur `tools/seed/data/referentiel.json`. 55 = agrément de l'IME,
+// pas l'effectif du jour : semer à pleine charge évite de découvrir un
+// problème de liste longue le jour où l'établissement est complet.
+//   unite_001 Proximité   : 14 (usager_001..010 + usager_036..039)
+//   unite_002 Polyvalence : 27 (usager_011..026 + usager_040..050)
+//   unite_003 Orientation : 14 (usager_027..035 + usager_051..055)
+// Le déséquilibre est intentionnel : il reproduit la structure réelle et
+// fait apparaître les problèmes de listes longues et de pagination qu'une
+// répartition égale masquerait.
+//
+// `age` dérive de `anneeNaissance` (la valeur de référence, côté
+// referentiel.json) : age = 2026 - anneeNaissance. Le champ reste `age` ici
+// pour ne pas casser les écrans qui l'affichent — renommage hors périmètre
+// R1. Amplitudes par unité : Proximité 5-12 ans, Polyvalence 12-16,
+// Orientation 16-20. Les âges de usager_011..035 ont été réécrits en R1
+// pour les respecter (ils valaient tous 6-11 ans, incohérent pour une unité
+// d'orientation vers l'âge adulte) ; usager_001..010 étaient déjà dans leur
+// amplitude et n'ont pas été touchés.
 final List<MockUsager> mockUsagersCatalogue = [
   // Unité Proximité (unite_001)
   // Consentement image : tout accepté, saisi par un coordinateur en
@@ -415,14 +440,19 @@ final List<MockUsager> mockUsagersCatalogue = [
   MockUsager(id: 'usager_008', prenom: 'Jade', nom: 'Morel', age: 11, uniteId: 'unite_001', avatarColor: AppColors.roseViolet),
   MockUsager(id: 'usager_009', prenom: 'Nolan', nom: 'Barbier', age: 7, uniteId: 'unite_001', avatarColor: AppColors.marine),
   MockUsager(id: 'usager_010', prenom: 'Léna', nom: 'Chevalier', age: 9, uniteId: 'unite_001', avatarColor: AppColors.turquoise),
+  // R1 — complément Proximité pour atteindre l'effectif cible (14).
+  MockUsager(id: 'usager_036', prenom: 'Sacha', nom: 'Delaunay', age: 5, uniteId: 'unite_001', avatarColor: AppColors.roseViolet),
+  MockUsager(id: 'usager_037', prenom: 'Ambre', nom: 'Colin', age: 12, uniteId: 'unite_001', avatarColor: AppColors.marine),
+  MockUsager(id: 'usager_038', prenom: 'Ethan', nom: 'Masson', age: 6, uniteId: 'unite_001', avatarColor: AppColors.turquoise),
+  MockUsager(id: 'usager_039', prenom: 'Zoé', nom: 'Legrand', age: 11, uniteId: 'unite_001', avatarColor: AppColors.roseViolet),
   // Unité Polyvalence (unite_002)
-  MockUsager(id: 'usager_011', prenom: 'Timéo', nom: 'Vidal', age: 8, uniteId: 'unite_002', avatarColor: AppColors.roseViolet),
-  MockUsager(id: 'usager_012', prenom: 'Manon', nom: 'Caron', age: 10, uniteId: 'unite_002', avatarColor: AppColors.marine),
+  MockUsager(id: 'usager_011', prenom: 'Timéo', nom: 'Vidal', age: 13, uniteId: 'unite_002', avatarColor: AppColors.roseViolet),
+  MockUsager(id: 'usager_012', prenom: 'Manon', nom: 'Caron', age: 14, uniteId: 'unite_002', avatarColor: AppColors.marine),
   // Rattachés à une famille, voir `mockFamilles`.
-  MockUsager(id: 'usager_013', prenom: 'Lucas', nom: 'Dubois', age: 8, uniteId: 'unite_002', avatarColor: AppColors.turquoise),
-  MockUsager(id: 'usager_014', prenom: 'Chloé', nom: 'Leroy', age: 7, uniteId: 'unite_002', avatarColor: AppColors.roseViolet),
-  MockUsager(id: 'usager_015', prenom: 'Léa', nom: 'Petit', age: 9, uniteId: 'unite_002', avatarColor: AppColors.marine),
-  MockUsager(id: 'usager_016', prenom: 'Tom', nom: 'Moreau', age: 6, uniteId: 'unite_002', avatarColor: AppColors.turquoise),
+  MockUsager(id: 'usager_013', prenom: 'Lucas', nom: 'Dubois', age: 12, uniteId: 'unite_002', avatarColor: AppColors.turquoise),
+  MockUsager(id: 'usager_014', prenom: 'Chloé', nom: 'Leroy', age: 13, uniteId: 'unite_002', avatarColor: AppColors.roseViolet),
+  MockUsager(id: 'usager_015', prenom: 'Léa', nom: 'Petit', age: 15, uniteId: 'unite_002', avatarColor: AppColors.marine),
+  MockUsager(id: 'usager_016', prenom: 'Tom', nom: 'Moreau', age: 12, uniteId: 'unite_002', avatarColor: AppColors.turquoise),
   // CAS DE TEST HOMONYMIE VOLONTAIRE (1/2) — voir aussi usager_032 plus bas :
   // même prénom + nom ("Emma Bernard"), ids différents, unités différentes.
   // Consentement image : tout accepté (saisi par la famille fam_bernard) —
@@ -432,7 +462,7 @@ final List<MockUsager> mockUsagersCatalogue = [
     id: 'usager_017',
     prenom: 'Emma',
     nom: 'Bernard',
-    age: 8,
+    age: 14,
     uniteId: 'unite_002',
     avatarColor: AppColors.roseViolet,
     consentImage: ConsentImage(
@@ -444,20 +474,32 @@ final List<MockUsager> mockUsagersCatalogue = [
       saisiPar: 'fam_bernard',
     ),
   ),
-  MockUsager(id: 'usager_018', prenom: 'Hugo', nom: 'Rousseau', age: 10, uniteId: 'unite_002', avatarColor: AppColors.marine),
-  MockUsager(id: 'usager_019', prenom: 'Jules', nom: 'Girard', age: 7, uniteId: 'unite_002', avatarColor: AppColors.turquoise),
-  MockUsager(id: 'usager_020', prenom: 'Noah', nom: 'Fontaine', age: 9, uniteId: 'unite_002', avatarColor: AppColors.roseViolet),
-  MockUsager(id: 'usager_021', prenom: 'Maël', nom: 'Bertrand', age: 9, uniteId: 'unite_002', avatarColor: AppColors.marine),
-  MockUsager(id: 'usager_022', prenom: 'Lou', nom: 'Renard', age: 7, uniteId: 'unite_002', avatarColor: AppColors.turquoise),
-  MockUsager(id: 'usager_023', prenom: 'Gabriel', nom: 'Marchand', age: 10, uniteId: 'unite_002', avatarColor: AppColors.roseViolet),
-  MockUsager(id: 'usager_024', prenom: 'Alice', nom: 'Bonnet', age: 8, uniteId: 'unite_002', avatarColor: AppColors.marine),
-  MockUsager(id: 'usager_025', prenom: 'Léo', nom: 'Fournier', age: 6, uniteId: 'unite_002', avatarColor: AppColors.turquoise),
-  MockUsager(id: 'usager_026', prenom: 'Juliette', nom: 'Aubert', age: 9, uniteId: 'unite_002', avatarColor: AppColors.roseViolet),
+  MockUsager(id: 'usager_018', prenom: 'Hugo', nom: 'Rousseau', age: 16, uniteId: 'unite_002', avatarColor: AppColors.marine),
+  MockUsager(id: 'usager_019', prenom: 'Jules', nom: 'Girard', age: 13, uniteId: 'unite_002', avatarColor: AppColors.turquoise),
+  MockUsager(id: 'usager_020', prenom: 'Noah', nom: 'Fontaine', age: 15, uniteId: 'unite_002', avatarColor: AppColors.roseViolet),
+  MockUsager(id: 'usager_021', prenom: 'Maël', nom: 'Bertrand', age: 14, uniteId: 'unite_002', avatarColor: AppColors.marine),
+  MockUsager(id: 'usager_022', prenom: 'Lou', nom: 'Renard', age: 12, uniteId: 'unite_002', avatarColor: AppColors.turquoise),
+  MockUsager(id: 'usager_023', prenom: 'Gabriel', nom: 'Marchand', age: 16, uniteId: 'unite_002', avatarColor: AppColors.roseViolet),
+  MockUsager(id: 'usager_024', prenom: 'Alice', nom: 'Bonnet', age: 13, uniteId: 'unite_002', avatarColor: AppColors.marine),
+  MockUsager(id: 'usager_025', prenom: 'Léo', nom: 'Fournier', age: 12, uniteId: 'unite_002', avatarColor: AppColors.turquoise),
+  MockUsager(id: 'usager_026', prenom: 'Juliette', nom: 'Aubert', age: 15, uniteId: 'unite_002', avatarColor: AppColors.roseViolet),
+  // R1 — complément Polyvalence pour atteindre l'effectif cible (27).
+  MockUsager(id: 'usager_040', prenom: 'Yanis', nom: 'Charpentier', age: 12, uniteId: 'unite_002', avatarColor: AppColors.marine),
+  MockUsager(id: 'usager_041', prenom: 'Louna', nom: 'Deschamps', age: 14, uniteId: 'unite_002', avatarColor: AppColors.turquoise),
+  MockUsager(id: 'usager_042', prenom: 'Ilan', nom: 'Berger', age: 15, uniteId: 'unite_002', avatarColor: AppColors.roseViolet),
+  MockUsager(id: 'usager_043', prenom: 'Maya', nom: 'Lefèvre', age: 13, uniteId: 'unite_002', avatarColor: AppColors.marine),
+  MockUsager(id: 'usager_044', prenom: 'Théo', nom: 'Gaillard', age: 16, uniteId: 'unite_002', avatarColor: AppColors.turquoise),
+  MockUsager(id: 'usager_045', prenom: 'Sarah', nom: 'Poirier', age: 12, uniteId: 'unite_002', avatarColor: AppColors.roseViolet),
+  MockUsager(id: 'usager_046', prenom: 'Malo', nom: 'Rey', age: 14, uniteId: 'unite_002', avatarColor: AppColors.marine),
+  MockUsager(id: 'usager_047', prenom: 'Elsa', nom: 'Baron', age: 15, uniteId: 'unite_002', avatarColor: AppColors.turquoise),
+  MockUsager(id: 'usager_048', prenom: 'Kylian', nom: 'Noël', age: 13, uniteId: 'unite_002', avatarColor: AppColors.roseViolet),
+  MockUsager(id: 'usager_049', prenom: 'Norah', nom: 'Vasseur', age: 16, uniteId: 'unite_002', avatarColor: AppColors.marine),
+  MockUsager(id: 'usager_050', prenom: 'Axel', nom: 'Guillot', age: 14, uniteId: 'unite_002', avatarColor: AppColors.turquoise),
   // Unité Orientation (unite_003)
-  MockUsager(id: 'usager_027', prenom: 'Nino', nom: 'Dumas', age: 8, uniteId: 'unite_003', avatarColor: AppColors.marine),
-  MockUsager(id: 'usager_028', prenom: 'Anna', nom: 'Guérin', age: 11, uniteId: 'unite_003', avatarColor: AppColors.turquoise),
-  MockUsager(id: 'usager_029', prenom: 'Victor', nom: 'Leclerc', age: 7, uniteId: 'unite_003', avatarColor: AppColors.roseViolet),
-  MockUsager(id: 'usager_030', prenom: 'Rose', nom: 'Meunier', age: 9, uniteId: 'unite_003', avatarColor: AppColors.marine),
+  MockUsager(id: 'usager_027', prenom: 'Nino', nom: 'Dumas', age: 17, uniteId: 'unite_003', avatarColor: AppColors.marine),
+  MockUsager(id: 'usager_028', prenom: 'Anna', nom: 'Guérin', age: 19, uniteId: 'unite_003', avatarColor: AppColors.turquoise),
+  MockUsager(id: 'usager_029', prenom: 'Victor', nom: 'Leclerc', age: 16, uniteId: 'unite_003', avatarColor: AppColors.roseViolet),
+  MockUsager(id: 'usager_030', prenom: 'Rose', nom: 'Meunier', age: 18, uniteId: 'unite_003', avatarColor: AppColors.marine),
   // Consentement image : tout accepté — seul cas "sans badge" parmi les 5
   // usagers historiquement utilisés pour Agenda/Publications (usager_031..
   // 035), pour pouvoir tester les deux états du badge dans
@@ -466,7 +508,7 @@ final List<MockUsager> mockUsagersCatalogue = [
     id: 'usager_031',
     prenom: 'Lucas',
     nom: 'Martin',
-    age: 10,
+    age: 17,
     uniteId: 'unite_003',
     avatarColor: AppColors.turquoise,
     consentImage: ConsentImage(
@@ -486,7 +528,7 @@ final List<MockUsager> mockUsagersCatalogue = [
     id: 'usager_032',
     prenom: 'Emma',
     nom: 'Bernard',
-    age: 7,
+    age: 16,
     uniteId: 'unite_003',
     avatarColor: AppColors.roseViolet,
     consentImage: ConsentImage(
@@ -495,9 +537,15 @@ final List<MockUsager> mockUsagersCatalogue = [
       saisiPar: mockProConnecteUid,
     ),
   ),
-  MockUsager(id: 'usager_033', prenom: 'Nathan', nom: 'Petit', age: 9, uniteId: 'unite_003', avatarColor: AppColors.marine),
-  MockUsager(id: 'usager_034', prenom: 'Chloé', nom: 'Rousseau', age: 6, uniteId: 'unite_003', avatarColor: AppColors.turquoise),
-  MockUsager(id: 'usager_035', prenom: 'Léo', nom: 'Girard', age: 8, uniteId: 'unite_003', avatarColor: AppColors.roseViolet),
+  MockUsager(id: 'usager_033', prenom: 'Nathan', nom: 'Petit', age: 18, uniteId: 'unite_003', avatarColor: AppColors.marine),
+  MockUsager(id: 'usager_034', prenom: 'Chloé', nom: 'Rousseau', age: 20, uniteId: 'unite_003', avatarColor: AppColors.turquoise),
+  MockUsager(id: 'usager_035', prenom: 'Léo', nom: 'Girard', age: 19, uniteId: 'unite_003', avatarColor: AppColors.roseViolet),
+  // R1 — complément Orientation pour atteindre l'effectif cible (14).
+  MockUsager(id: 'usager_051', prenom: 'Océane', nom: 'Maillard', age: 16, uniteId: 'unite_003', avatarColor: AppColors.roseViolet),
+  MockUsager(id: 'usager_052', prenom: 'Samuel', nom: 'Bourgeois', age: 18, uniteId: 'unite_003', avatarColor: AppColors.marine),
+  MockUsager(id: 'usager_053', prenom: 'Lilou', nom: 'Perez', age: 20, uniteId: 'unite_003', avatarColor: AppColors.turquoise),
+  MockUsager(id: 'usager_054', prenom: 'Antoine', nom: 'Schmitt', age: 17, uniteId: 'unite_003', avatarColor: AppColors.roseViolet),
+  MockUsager(id: 'usager_055', prenom: 'Naïa', nom: 'Roussel', age: 19, uniteId: 'unite_003', avatarColor: AppColors.marine),
 ];
 
 /// Prénoms des usagers ayant une famille rattachée (mock). Conservée pour
