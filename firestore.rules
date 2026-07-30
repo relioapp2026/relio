@@ -8,6 +8,16 @@ rules_version = '2';
 // documents → notifications.
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Document `users/{uid}` du demandeur. Chaque appel est facturé comme
+    // une lecture, mais Firestore mutualise les get() identiques au sein
+    // d'une même évaluation — donc appeler userDoc() trois fois dans une
+    // règle ne coûte en principe qu'une lecture, et une requête de liste ne
+    // le paie pas par document retourné. À MESURER, pas à supposer : voir
+    // CLAUDE.md, section « Chantier Référentiel », protocole de relevé.
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
     // users/{uid} : Phase 1 du chantier Back. Chacun ne peut lire que son
     // propre document. Création réservée aux comptes famille — les comptes
     // pro restent créés manuellement via la console pendant le MVP.
@@ -37,6 +47,64 @@ service cloud.firestore {
     match /codes_invitation/{codeId} {
       allow get: if request.auth != null;
       allow list: if false;
+      allow write: if false;
+    }
+
+    // ---------------------------------------------------------------------
+    // Référentiel (chantier Référentiel / R2) : etablissements, unites,
+    // usagers.
+    //
+    // ÉCRITURE CLIENTE INTERDITE PARTOUT (`allow write: if false`) : ces
+    // collections se peuplent par le script de seed (`tools/seed/`, SDK
+    // Admin, qui contourne ces règles), plus tard par Relio Admin.
+    //
+    // Piège évité ici : sur un compte famille, `unitesAcces` n'existe pas —
+    // et sur un compte pro, `usagersIds` n'existe pas (forme réelle des
+    // documents vérifiée en base). Or accéder à un champ absent produit une
+    // ERREUR d'évaluation, pas `null` : la règle échouerait et refuserait
+    // l'accès. Le `||` court-circuite sur `true`, mais pas sur une erreur à
+    // gauche. D'où `.get('champ', [])` partout, jamais `userDoc().champ`.
+    // ---------------------------------------------------------------------
+
+    // Lisible par tout membre de l'établissement, quel que soit son rôle.
+    match /etablissements/{etablissementId} {
+      allow read: if request.auth != null
+        && userDoc().etablissementId == etablissementId;
+      allow write: if false;
+    }
+
+    // Un pro reste borné à ses `unitesAcces` (moindre privilège). Une
+    // famille peut lire n'importe quelle unité de son établissement : le
+    // libellé de l'unité de son enfant doit s'afficher dans son app, et
+    // `unitesAcces` n'existe pas sur un compte famille. L'alternative —
+    // dériver l'unité depuis les usagers de la famille — imposerait un
+    // get() par usager dans la règle. Un nom d'unité n'est pas une donnée
+    // sensible : simplicité contre un risque nul.
+    match /unites/{uniteId} {
+      allow read: if request.auth != null
+        && (
+          uniteId in userDoc().get('unitesAcces', [])
+          || (
+            userDoc().role == 'famille'
+            && userDoc().etablissementId == resource.data.etablissementId
+          )
+        );
+      allow write: if false;
+    }
+
+    // Un pro accède aux usagers des unités de son `unitesAcces` ; une
+    // famille, aux usagers dont l'id figure dans son `usagersIds`.
+    //
+    // Rappel : pour une requête de liste, cette règle est évaluée document
+    // par document retourné — elle ne filtre pas. Une requête ramenant un
+    // seul document hors périmètre échoue en entier. C'est pour ça que
+    // `ReferentielService` borne toujours ses requêtes côté client.
+    match /usagers/{usagerId} {
+      allow read: if request.auth != null
+        && (
+          resource.data.uniteId in userDoc().get('unitesAcces', [])
+          || usagerId in userDoc().get('usagersIds', [])
+        );
       allow write: if false;
     }
   }

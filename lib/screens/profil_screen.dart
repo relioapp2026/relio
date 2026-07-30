@@ -12,6 +12,8 @@ import 'aide_support_screen.dart';
 import 'cahier_de_liaison_screen.dart';
 import 'changer_mot_de_passe_screen.dart';
 import 'confidentialite_rgpd_screen.dart';
+// TEMPORAIRE — R3, voir la tuile « Diagnostic référentiel » plus bas.
+import 'diagnostic_referentiel_screen.dart';
 import 'documents_famille_screen.dart';
 import 'documents_pro_screen.dart';
 import 'edit_profil_screen.dart';
@@ -224,6 +226,17 @@ class ProfilScreen extends StatelessWidget {
                         subtitle: 'Besoin d\'aide ? Consultez notre FAQ',
                         onTap: () => Navigator.of(context).push(
                           fadeRoute(const AideSupportScreen()),
+                        ),
+                      ),
+                      // TEMPORAIRE — R3 : point d'accès au livrable de
+                      // validation du chantier Référentiel (R2). À retirer
+                      // en même temps que diagnostic_referentiel_screen.dart.
+                      _MenuTile(
+                        icon: Icons.bug_report_outlined,
+                        label: 'Diagnostic référentiel (temporaire)',
+                        subtitle: 'Vérifier la lecture Firestore et les règles',
+                        onTap: () => Navigator.of(context).push(
+                          fadeRoute(const DiagnosticReferentielScreen()),
                         ),
                       ),
                     ]),

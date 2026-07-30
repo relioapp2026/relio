@@ -168,6 +168,80 @@ compte de direction dormant produirait une modération théorique.
 
 ---
 
+## Comptes de test à créer en console (chantier Référentiel, R2)
+
+Ces deux comptes ne sont **pas** créés par le script : ils vivent dans `users`, pas dans le
+référentiel. À créer à la main sur **`relio-dev`**.
+
+Pour chacun : d'abord **Authentication → Ajouter un utilisateur** (email + mot de passe), puis
+un document **`users/{uid}`** avec l'uid généré, contenant les champs ci-dessous.
+
+> ⚠️ **`dateCreation` est obligatoire, de type `timestamp`.**
+> `ProUser.fromFirestore` et `FamilleUser.fromFirestore` font un cast strict
+> (`data['dateCreation'] as Timestamp`) : un compte sans ce champ fait **échouer la connexion**
+> avec une erreur peu parlante. Même chose pour `nom`, `prenom`, `email`, `etablissementId`, et
+> `unitesAcces` (pro) / `usagersIds` (famille) — aucun n'a de valeur de repli.
+> Seuls `codeInvitationUtilise`, `peutDiffuserEtablissement` et `peutModerer` tolèrent l'absence.
+
+### 1. Compte famille « fratrie » — deux usagers sur deux unités
+
+```json
+{
+  "role": "famille",
+  "nom": "Petit",
+  "prenom": "Parent",
+  "email": "<l'email saisi dans Authentication>",
+  "etablissementId": "etab_001",
+  "usagersIds": ["usager_015", "usager_033"],
+  "dateCreation": "<timestamp — mettre la date du jour>"
+}
+```
+
+`usager_015` (Léa Petit, `unite_002`) et `usager_033` (Nathan Petit, `unite_003`) : la fratrie
+Petit, répartie sur deux unités.
+
+C'est le **seul moyen de vérifier qu'une famille agrège deux unités**. Il servira ensuite à
+valider la requête `cibles array-contains-any` du feed au chantier Publications.
+
+### 2. Compte pro restreint à une seule unité
+
+```json
+{
+  "role": "pro",
+  "nom": "Restreint",
+  "prenom": "Pro",
+  "email": "<l'email saisi dans Authentication>",
+  "etablissementId": "etab_001",
+  "unitesAcces": ["unite_001"],
+  "peutDiffuserEtablissement": false,
+  "peutModerer": false,
+  "dateCreation": "<timestamp — mettre la date du jour>"
+}
+```
+
+Sans lui, **aucun test négatif n'est possible** : le compte de Séb possède les trois unités,
+donc aucun usager n'est hors de son périmètre, donc rien ne prouve que les règles restreignent
+quoi que ce soit.
+
+Ce compte garde de la valeur au-delà de R2 : il vérifiera aussi la puce grisée
+« Établissement » sur les écrans d'envoi de document/message.
+
+Ce n'est **pas** le compte de la collègue en formation à la coordination, qui recevra les mêmes
+droits que Séb quand il sera créé.
+
+### Ce qu'on attend de chaque compte sur l'écran de diagnostic
+
+| Compte | Unités | Usagers | Test d'écriture |
+|---|---|---|---|
+| Pro de Séb (3 unités) | 3 | 14 / 27 / 14, total **55** | refusé |
+| **Pro restreint** | **1** | **14**, pas 55 | refusé |
+| Famille fratrie | 2 | exactement **2** (`usager_015`, `usager_033`) | refusé |
+
+Le deuxième est celui qui compte : c'est le seul qui prouve que les règles *restreignent* au
+lieu de simplement autoriser.
+
+---
+
 ## Référence
 
 Brief complet : [`docs/briefs/brief-R1-referentiel-firestore.md`](../../docs/briefs/brief-R1-referentiel-firestore.md)
