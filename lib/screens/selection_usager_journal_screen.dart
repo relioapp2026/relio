@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 
-import '../data/mock_data.dart';
+import '../models/usager_affichage.dart';
 import '../models/visibilite_type.dart';
 import '../services/auth_service.dart';
+import '../services/referentiel_service.dart';
 import '../theme/app_colors.dart';
+import '../utils/chargement_referentiel.dart';
 import '../utils/fade_route.dart';
 import '../widgets/auth_background.dart';
 import '../widgets/consent_image_badge.dart';
+import '../widgets/etat_referentiel.dart';
 import '../widgets/simple_turquoise_header.dart';
 import 'cahier_de_liaison_screen.dart';
 import 'journal_de_vie_screen.dart';
@@ -14,42 +17,17 @@ import 'journal_de_vie_screen.dart';
 /// Sous-page vers laquelle mène la sélection d'un usager.
 enum SelectionUsagerDestination { journalDeVie, cahierDeLiaison }
 
-class _UsagerJournal {
-  const _UsagerJournal({
-    required this.id,
-    required this.name,
-    required this.age,
-    required this.souvenirsCount,
-    required this.avatarColor,
-  });
-
-  /// Chantier 0 / Session C2a — id stable (`mockUsagersCatalogue`), `null`
-  /// si non résolvable (voir commentaires ci-dessous).
-  final String? id;
-  final String name;
-  final int age;
-  final int souvenirsCount;
-  final Color avatarColor;
-}
-
-// Donnée factice : en production, cette liste sera filtrée côté Firestore
-// par les `unites_acces` du professionnel connecté.
-const _mockUsagersJournal = [
-  // TEST DATA À NETTOYER — "Léo Martin" ne correspond à aucun usager du
-  // catalogue fusionné (même incohérence que evt1 dans mock_data.dart,
-  // antérieure à ce chantier). Id laissé à `null` plutôt qu'inventé.
-  _UsagerJournal(id: null, name: 'Léo Martin', age: 8, souvenirsCount: 47, avatarColor: AppColors.turquoise),
-  // Homonyme ambigu par nom (voir usager_017/usager_032, "Emma Bernard").
-  // usager_017 choisi ici (rattachée à une famille, fam_bernard) plutôt que
-  // usager_032 (monde Agenda, sans famille) — choix arbitraire à confirmer
-  // avec Séb, la résolution par nom seul ne permettant pas de trancher.
-  _UsagerJournal(id: 'usager_017', name: 'Emma Bernard', age: 7, souvenirsCount: 32, avatarColor: AppColors.roseViolet),
-  _UsagerJournal(id: 'usager_033', name: 'Nathan Petit', age: 9, souvenirsCount: 19, avatarColor: AppColors.marine),
-  _UsagerJournal(id: 'usager_034', name: 'Chloé Rousseau', age: 6, souvenirsCount: 28, avatarColor: AppColors.turquoise),
-  _UsagerJournal(id: 'usager_031', name: 'Lucas Martin', age: 10, souvenirsCount: 41, avatarColor: AppColors.roseViolet),
-];
-
-class SelectionUsagerJournalScreen extends StatelessWidget {
+/// Liste des usagers accessibles au pro connecté, pour ouvrir leur Journal de
+/// vie ou leur Cahier de liaison.
+///
+/// Chantier Référentiel / R3a — la liste vient de Firestore, bornée aux
+/// `unitesAcces` du pro. Elle portait auparavant cinq usagers écrits en dur,
+/// dont une entrée de test sans id (« Léo Martin ») et un compteur de
+/// souvenirs factice : le premier ne pouvait mener nulle part, le second
+/// n'avait aucune contrepartie en base. Le compteur réel réapparaîtra à
+/// l'étape 5 du chantier Publications, quand le Journal de vie sera alimenté
+/// par de vraies publications.
+class SelectionUsagerJournalScreen extends StatefulWidget {
   const SelectionUsagerJournalScreen({
     super.key,
     this.destination = SelectionUsagerDestination.journalDeVie,
@@ -57,26 +35,58 @@ class SelectionUsagerJournalScreen extends StatelessWidget {
 
   final SelectionUsagerDestination destination;
 
-  String _initials(String name) {
-    final parts = name.trim().split(RegExp(r'\s+'));
-    final letters = parts.take(2).map((p) => p.isEmpty ? '' : p[0]).join();
-    return letters.toUpperCase();
+  @override
+  State<SelectionUsagerJournalScreen> createState() =>
+      _SelectionUsagerJournalScreenState();
+}
+
+class _SelectionUsagerJournalScreenState extends State<SelectionUsagerJournalScreen> {
+  final _service = ReferentielService();
+
+  bool _chargement = true;
+  ChargementReferentiel<List<UsagerAffichage>>? _resultat;
+
+  @override
+  void initState() {
+    super.initState();
+    _charger();
   }
 
-  /// Usagers du catalogue factice dont l'unité figure dans les
-  /// `unitesAcces` du pro réellement connecté. Liste vide si personne n'est
-  /// connecté ou si le pro n'a accès à aucune unité. Un `_UsagerJournal`
-  /// sans id résolvable (donnée de test, voir "Léo Martin" ci-dessus) ne
-  /// peut jamais être rattaché à une unité et est donc toujours exclu.
-  List<_UsagerJournal> get _usagersFiltres {
-    final unitesAcces = AuthService.currentProUser?.unitesAcces ?? const <String>[];
-    if (unitesAcces.isEmpty) return const [];
-    return _mockUsagersJournal.where((usager) {
-      final id = usager.id;
-      if (id == null) return false;
-      final mockUsager = findUsagerById(id);
-      return mockUsager != null && unitesAcces.contains(mockUsager.uniteId);
-    }).toList();
+  Future<void> _charger() async {
+    setState(() => _chargement = true);
+
+    final resultat = await chargerReferentiel<List<UsagerAffichage>>(() async {
+      final unitesAcces = AuthService.currentProUser?.unitesAcces ?? const <String>[];
+      if (unitesAcces.isEmpty) return const <UsagerAffichage>[];
+      // Une seule requête groupée, bornée aux unités du pro — jamais un appel
+      // par usager, qui multiplierait les lectures facturées.
+      return _service.getUsagersAffichagePourPro(unitesAcces);
+    });
+
+    if (!mounted) return;
+    setState(() {
+      _resultat = resultat;
+      _chargement = false;
+    });
+  }
+
+  void _ouvrir(UsagerAffichage usager) {
+    Navigator.of(context).push(
+      fadeRoute(
+        widget.destination == SelectionUsagerDestination.journalDeVie
+            ? JournalDeVieScreen(
+                usagerName: usager.nomComplet,
+                usagerId: usager.id,
+                usagerAge: usager.age,
+                isPro: true,
+              )
+            : CahierDeLiaisonScreen(
+                usagerId: usager.id,
+                usagerName: usager.nomComplet,
+                isPro: true,
+              ),
+      ),
+    );
   }
 
   @override
@@ -88,94 +98,87 @@ class SelectionUsagerJournalScreen extends StatelessWidget {
           children: [
             const SimpleTurquoiseHeader(title: 'Sélectionner un usager'),
             Expanded(
-              child: AuthBackground(
-                child: ListView.separated(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  itemCount: _usagersFiltres.length,
-                  separatorBuilder: (_, _) => Divider(
-                    height: 1,
-                    indent: 72,
-                    color: AppColors.marine.withValues(alpha: 0.08),
-                  ),
-                  itemBuilder: (context, index) {
-                    final usager = _usagersFiltres[index];
-                    final sansConsentement =
-                        usagerSansAutorisationImage(usager.id, type: VisibiliteType.individuelle) ||
-                            usagerSansAutorisationImage(usager.id, type: VisibiliteType.groupe);
-                    return InkWell(
-                      onTap: () {
-                        if (destination == SelectionUsagerDestination.cahierDeLiaison &&
-                            usager.id == null) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Identifiant usager introuvable (donnée de test)')),
-                          );
-                          return;
-                        }
-                        Navigator.of(context).push(
-                          fadeRoute(
-                            destination == SelectionUsagerDestination.journalDeVie
-                                ? JournalDeVieScreen(
-                                    usagerName: usager.name,
-                                    usagerId: usager.id,
-                                    usagerAge: usager.age,
-                                    souvenirsCount: usager.souvenirsCount,
-                                    isPro: true,
-                                  )
-                                : CahierDeLiaisonScreen(
-                                    usagerId: usager.id!,
-                                    usagerName: usager.name,
-                                    isPro: true,
-                                  ),
-                          ),
-                        );
-                      },
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                        child: Row(
-                          children: [
-                            CircleAvatar(
-                              radius: 20,
-                              backgroundColor: usager.avatarColor,
-                              child: Text(
-                                _initials(usager.name),
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 14,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    usager.name,
-                                    style: TextStyle(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w700,
-                                      color: AppColors.marine,
-                                    ),
-                                  ),
-                                  if (sansConsentement) ...[
-                                    const SizedBox(height: 4),
-                                    const ConsentImageBadge(),
-                                  ],
-                                ],
-                              ),
-                            ),
-                            Icon(
-                              Icons.chevron_right,
-                              color: AppColors.marine.withValues(alpha: 0.4),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
+              child: AuthBackground(child: _buildContenu()),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildContenu() {
+    if (_chargement) return const ReferentielEnChargement();
+
+    final resultat = _resultat!;
+    if (resultat.enEchec) {
+      return ReferentielEnErreur(resultat: resultat, onReessayer: _charger);
+    }
+
+    final usagers = resultat.valeur!;
+    if (usagers.isEmpty) {
+      return const ReferentielVide(
+        message: 'Aucun usager accessible avec votre compte.',
+      );
+    }
+
+    return ListView.separated(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      itemCount: usagers.length,
+      separatorBuilder: (_, _) => Divider(
+        height: 1,
+        indent: 72,
+        color: AppColors.marine.withValues(alpha: 0.08),
+      ),
+      itemBuilder: (context, index) => _buildLigne(usagers[index]),
+    );
+  }
+
+  Widget _buildLigne(UsagerAffichage usager) {
+    final sansConsentement =
+        usager.sansAutorisationImage(VisibiliteType.individuelle) ||
+            usager.sansAutorisationImage(VisibiliteType.groupe);
+
+    return InkWell(
+      onTap: () => _ouvrir(usager),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: 20,
+              backgroundColor: usager.avatarColor,
+              child: Text(
+                usager.initiales,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
                 ),
               ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    usager.nomComplet,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.marine,
+                    ),
+                  ),
+                  if (sansConsentement) ...[
+                    const SizedBox(height: 4),
+                    const ConsentImageBadge(),
+                  ],
+                ],
+              ),
+            ),
+            Icon(
+              Icons.chevron_right,
+              color: AppColors.marine.withValues(alpha: 0.4),
             ),
           ],
         ),

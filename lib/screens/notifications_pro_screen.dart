@@ -3,9 +3,12 @@ import 'package:flutter/material.dart';
 import '../data/mock_data.dart';
 import '../models/evenement.dart';
 import '../models/notification.dart';
+import '../models/usager_affichage.dart';
 import '../models/visibilite_type.dart';
 import '../services/auth_service.dart';
+import '../services/referentiel_service.dart';
 import '../theme/app_colors.dart';
+import '../utils/chargement_referentiel.dart';
 import '../utils/fade_route.dart';
 import '../widgets/auth_background.dart';
 import '../widgets/notification_style.dart';
@@ -15,22 +18,31 @@ import 'document_detail_screen.dart';
 import 'feed_pro_screen.dart';
 import 'message_detail_screen.dart';
 
-/// Résout un usager représentatif d'un événement, pour ouvrir son Cahier de
-/// liaison depuis une notification (l'agenda pro est désormais consulté par
-/// usager, plus de vue globale directement accessible). `null` si
-/// l'événement ne concerne aucun usager précis (établissement, ou groupe/
-/// individuel sans usager résolvable).
-MockUsager? _usagerPourEvenement(Evenement evenement) {
-  switch (evenement.type) {
-    case VisibiliteType.individuelle:
-      if (evenement.usagersConcernesIds.isEmpty) return null;
-      return findUsagerById(evenement.usagersConcernesIds.first);
-    case VisibiliteType.groupe:
-      final usagers = mockUsagersCatalogue.where((u) => u.uniteId == evenement.uniteConcerneeId).toList();
-      return usagers.isEmpty ? null : usagers.first;
-    case VisibiliteType.etablissement:
-      return null;
-  }
+/// Résout un usager représentatif d'un événement, pour ouvrir son agenda
+/// depuis une notification (l'agenda pro est consulté par usager, plus de vue
+/// globale directement accessible). `null` si l'événement ne concerne aucun
+/// usager précis (portée établissement, ou unité vide).
+///
+/// Chantier Référentiel / R3a — lecture Firestore, donc asynchrone. Un seul
+/// appel par tap, uniquement sur une notification d'agenda.
+Future<ChargementReferentiel<UsagerAffichage?>> _usagerPourEvenement(
+  ReferentielService service,
+  Evenement evenement,
+) {
+  return chargerReferentiel<UsagerAffichage?>(() async {
+    switch (evenement.type) {
+      case VisibiliteType.individuelle:
+        if (evenement.usagersConcernesIds.isEmpty) return null;
+        return service.getUsagerAffichage(evenement.usagersConcernesIds.first);
+      case VisibiliteType.groupe:
+        final uniteId = evenement.uniteConcerneeId;
+        if (uniteId == null) return null;
+        final usagers = await service.getUsagersAffichageParUnite(uniteId);
+        return usagers.isEmpty ? null : usagers.first;
+      case VisibiliteType.etablissement:
+        return null;
+    }
+  });
 }
 
 /// Liste des notifications du pro connecté, triées par date décroissante.
@@ -42,6 +54,7 @@ class NotificationsProScreen extends StatefulWidget {
 }
 
 class _NotificationsProScreenState extends State<NotificationsProScreen> {
+  final _service = ReferentielService();
   late List<AppNotification> _notifications;
 
   @override
@@ -65,7 +78,7 @@ class _NotificationsProScreenState extends State<NotificationsProScreen> {
     });
   }
 
-  void _handleTap(AppNotification notification) {
+  Future<void> _handleTap(AppNotification notification) async {
     _marquerLu(notification);
 
     switch (notification.cibleType) {
@@ -88,7 +101,18 @@ class _NotificationsProScreenState extends State<NotificationsProScreen> {
       case CibleType.evenement:
         final evenement = mockEvenements.where((e) => e.id == notification.cibleId).toList();
         if (evenement.isEmpty) return;
-        final usager = _usagerPourEvenement(evenement.first);
+
+        final resultat = await _usagerPourEvenement(_service, evenement.first);
+        if (!mounted) return;
+
+        if (resultat.enEchec) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(resultat.messageUtilisateur)),
+          );
+          return;
+        }
+
+        final usager = resultat.valeur;
         if (usager == null) return;
         Navigator.of(context).push(
           fadeRoute(AgendaProScreen(usagerId: usager.id, usagerName: usager.nomComplet)),

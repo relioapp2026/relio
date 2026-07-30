@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../data/mock_data.dart';
+import '../models/unite.dart';
+import '../models/usager_affichage.dart';
 import '../models/visibilite_type.dart';
 import '../services/auth_service.dart';
 import '../theme/app_colors.dart';
@@ -9,12 +10,16 @@ import 'section_label.dart';
 
 /// Sélection courante : type de visibilité + usager (individuelle) ou
 /// unité + présences (groupe). `etablissement` ne porte aucune sélection.
+///
+/// Chantier Référentiel / R3a — **ne porte plus que des ids**. Les anciens
+/// champs `usagerId`/`uniteId`/`usagersPresentsIds`, qui contenaient en
+/// réalité les libellés affichés dans l'UI, ont été supprimés avec la
+/// résolution nom → id : deux usagers peuvent porter le même nom (voir
+/// `usager_017`/`usager_032`, « Emma Bernard »), un libellé ne désigne donc
+/// personne de façon fiable.
 class VisibiliteSelection {
   const VisibiliteSelection({
     required this.type,
-    this.usagerId,
-    this.uniteId,
-    this.usagersPresentsIds = const [],
     this.usagerConcerneId,
     this.uniteConcerneeId,
     this.usagersPresentsConcernesIds = const [],
@@ -22,46 +27,42 @@ class VisibiliteSelection {
 
   final VisibiliteType type;
 
-  /// DEPRECATED — malgré leur nom, ces champs contiennent les NOMS choisis
-  /// dans l'UI (ex: `'Lucas'`, `'Unité Les Papillons'`), pas des ids. À
-  /// retirer en Session C au profit de [usagerConcerneId]/
-  /// [uniteConcerneeId]/[usagersPresentsConcernesIds] ci-dessous.
-  final String? usagerId;
-  final String? uniteId;
-  final List<String> usagersPresentsIds;
-
-  /// Chantier 0 / Session B — vrai id stable (`mockUsagersCatalogue`),
-  /// résolu depuis [usagerId] via [resolveUsagerId]. `null` si non
-  /// résolvable (nom absent du catalogue, ou homonyme ambigu — voir le cas
-  /// `usager_017`/`usager_032` "Emma Bernard").
+  /// Id de l'usager concerné (portée individuelle uniquement).
   final String? usagerConcerneId;
 
-  /// Chantier 0 / Session B — vrai id stable (`mockUnitesCatalogue`),
-  /// résolu depuis [uniteId] via [resolveUniteId].
+  /// Id de l'unité concernée (portée groupe uniquement).
   final String? uniteConcerneeId;
 
-  /// Chantier 0 / Session B — vrais ids stables, résolus depuis
-  /// [usagersPresentsIds] via [resolveUsagerId].
+  /// Ids des usagers cochés comme présents (portée groupe uniquement).
   final List<String> usagersPresentsConcernesIds;
 }
 
 /// Bloc réutilisable (chips Individuelle/Unité/Établissement + le sous-bloc
 /// correspondant) utilisé par les écrans de création de publication et
 /// d'événement d'agenda — même modèle de visibilité pour les deux.
+///
+/// Ne lit rien lui-même : l'écran appelant charge le référentiel et lui passe
+/// le périmètre déjà borné aux droits du pro connecté.
 class VisibiliteSelector extends StatefulWidget {
   const VisibiliteSelector({
     super.key,
     this.typeLabel = 'Type',
-    required this.mockUsagers,
-    required this.mockUnites,
+    required this.usagers,
+    required this.unites,
     required this.onChanged,
     this.showConsentBadge = false,
     this.restrictionEtablissementActive = false,
+    this.messageAucunUsager = 'Aucun usager accessible avec votre compte.',
   });
 
   final String typeLabel;
-  final List<String> mockUsagers;
-  final List<String> mockUnites;
+
+  /// Usagers sélectionnables, déjà filtrés par l'écran appelant.
+  final List<UsagerAffichage> usagers;
+
+  /// Unités sélectionnables, déjà filtrées par l'écran appelant.
+  final List<Unite> unites;
+
   final ValueChanged<VisibiliteSelection> onChanged;
 
   /// Affiche le badge d'alerte consentement image (voir CLAUDE.md, section
@@ -77,6 +78,11 @@ class VisibiliteSelector extends StatefulWidget {
   /// restent ouverts à tous les pros, donc ce paramètre y reste à `false`.
   final bool restrictionEtablissementActive;
 
+  /// Message affiché dans le sous-bloc « Usager concerné » quand [usagers] est
+  /// vide. Les portées Unité et Établissement restent accessibles : l'absence
+  /// d'usager sélectionnable ne doit jamais désactiver tout le sélecteur.
+  final String messageAucunUsager;
+
   @override
   State<VisibiliteSelector> createState() => _VisibiliteSelectorState();
 }
@@ -85,12 +91,12 @@ class _VisibiliteSelectorState extends State<VisibiliteSelector> {
   VisibiliteType _type = VisibiliteType.individuelle;
 
   final _usagerSearchController = TextEditingController();
-  String? _selectedUsager;
-  String? _selectedUnite;
+  UsagerAffichage? _selectedUsager;
+  Unite? _selectedUnite;
 
-  late final Map<String, bool> _groupePresence = {
-    for (final usager in widget.mockUsagers) usager: true,
-  };
+  /// Présences de la portée groupe, par id d'usager. Reconstruite à chaque
+  /// changement d'unité — voir [_usagersDeLUniteSelectionnee].
+  final Map<String, bool> _groupePresence = {};
 
   @override
   void dispose() {
@@ -98,22 +104,41 @@ class _VisibiliteSelectorState extends State<VisibiliteSelector> {
     super.dispose();
   }
 
+  /// Usagers de l'unité sélectionnée.
+  ///
+  /// Une publication de groupe concerne **une** unité : proposer les usagers
+  /// des autres unités reviendrait à laisser cocher comme « présent » un
+  /// enfant qui n'y est pas inscrit. L'ancien sélecteur affichait la même
+  /// liste de cinq usagers quelle que soit l'unité choisie — un défaut que le
+  /// catalogue factice rendait invisible.
+  List<UsagerAffichage> get _usagersDeLUniteSelectionnee {
+    final unite = _selectedUnite;
+    if (unite == null) return const [];
+    return widget.usagers.where((u) => u.uniteId == unite.id).toList();
+  }
+
+  void _reinitialiserPresences() {
+    _groupePresence
+      ..clear()
+      ..addEntries(
+        // Tous pré-cochés : le pro décoche les absents (CLAUDE.md, « les 3
+        // types de publication »).
+        _usagersDeLUniteSelectionnee.map((u) => MapEntry(u.id, true)),
+      );
+  }
+
   void _notify() {
-    final usagersPresents = _groupePresence.entries
-        .where((entry) => entry.value)
-        .map((entry) => entry.key)
+    final presents = _usagersDeLUniteSelectionnee
+        .where((u) => _groupePresence[u.id] ?? false)
+        .map((u) => u.id)
         .toList();
 
     widget.onChanged(
       VisibiliteSelection(
         type: _type,
-        usagerId: _selectedUsager,
-        uniteId: _selectedUnite,
-        usagersPresentsIds: usagersPresents,
-        usagerConcerneId: _selectedUsager == null ? null : resolveUsagerId(_selectedUsager!),
-        uniteConcerneeId: _selectedUnite == null ? null : resolveUniteId(_selectedUnite!),
-        usagersPresentsConcernesIds:
-            usagersPresents.map(resolveUsagerId).whereType<String>().toList(),
+        usagerConcerneId: _selectedUsager?.id,
+        uniteConcerneeId: _selectedUnite?.id,
+        usagersPresentsConcernesIds: presents,
       ),
     );
   }
@@ -195,62 +220,88 @@ class _VisibiliteSelectorState extends State<VisibiliteSelector> {
 
   Widget _buildUsagerSection() {
     if (_type == VisibiliteType.individuelle) {
-      if (_selectedUsager != null) {
-        return _SelectedUsagerChip(
-          name: _selectedUsager!,
-          sansConsentement: widget.showConsentBadge &&
-              usagerSansAutorisationImage(resolveUsagerId(_selectedUsager!), type: VisibiliteType.individuelle),
-          onClear: () => setState(() {
-            _selectedUsager = null;
-            _notify();
-          }),
-        );
-      }
+      return _buildSelectionIndividuelle();
+    }
+    return _buildSelectionGroupe();
+  }
 
-      final query = _usagerSearchController.text.trim().toLowerCase();
-      final matches = query.isEmpty
-          ? const <String>[]
-          : widget.mockUsagers.where((name) => name.toLowerCase().contains(query)).toList();
+  Widget _buildSelectionIndividuelle() {
+    final selection = _selectedUsager;
+    if (selection != null) {
+      return _SelectedUsagerChip(
+        name: selection.nomComplet,
+        sansConsentement: widget.showConsentBadge &&
+            selection.sansAutorisationImage(VisibiliteType.individuelle),
+        onClear: () => setState(() {
+          _selectedUsager = null;
+          _notify();
+        }),
+      );
+    }
 
+    if (widget.usagers.isEmpty) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const SectionLabel('Usager concerné'),
           const SizedBox(height: 8),
-          TextField(
-            controller: _usagerSearchController,
-            style: TextStyle(color: AppColors.marine),
-            decoration: _fieldDecoration('Rechercher un usager...', icon: Icons.search),
-            onChanged: (_) => setState(() {}),
+          Text(
+            widget.messageAucunUsager,
+            style: TextStyle(fontSize: 12, color: AppColors.marine.withValues(alpha: 0.5)),
           ),
-          if (matches.isNotEmpty)
-            Container(
-              margin: const EdgeInsets.only(top: 8),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: AppColors.turquoise.withValues(alpha: 0.4)),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: matches.map((name) {
-                  final sansConsentement = widget.showConsentBadge &&
-                      usagerSansAutorisationImage(resolveUsagerId(name), type: VisibiliteType.individuelle);
-                  return ListTile(
-                    title: Text(name, style: TextStyle(color: AppColors.marine)),
-                    trailing: sansConsentement ? const ConsentImageBadge() : null,
-                    onTap: () => setState(() {
-                      _selectedUsager = name;
-                      _usagerSearchController.clear();
-                      _notify();
-                    }),
-                  );
-                }).toList(),
-              ),
-            ),
         ],
       );
     }
+
+    final query = _usagerSearchController.text.trim().toLowerCase();
+    final matches = query.isEmpty
+        ? const <UsagerAffichage>[]
+        : widget.usagers
+            .where((u) => u.nomComplet.toLowerCase().contains(query))
+            .toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SectionLabel('Usager concerné'),
+        const SizedBox(height: 8),
+        TextField(
+          controller: _usagerSearchController,
+          style: TextStyle(color: AppColors.marine),
+          decoration: _fieldDecoration('Rechercher un usager...', icon: Icons.search),
+          onChanged: (_) => setState(() {}),
+        ),
+        if (matches.isNotEmpty)
+          Container(
+            margin: const EdgeInsets.only(top: 8),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppColors.turquoise.withValues(alpha: 0.4)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: matches.map((usager) {
+                final sansConsentement = widget.showConsentBadge &&
+                    usager.sansAutorisationImage(VisibiliteType.individuelle);
+                return ListTile(
+                  title: Text(usager.nomComplet, style: TextStyle(color: AppColors.marine)),
+                  trailing: sansConsentement ? const ConsentImageBadge() : null,
+                  onTap: () => setState(() {
+                    _selectedUsager = usager;
+                    _usagerSearchController.clear();
+                    _notify();
+                  }),
+                );
+              }).toList(),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildSelectionGroupe() {
+    final usagersUnite = _usagersDeLUniteSelectionnee;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -258,54 +309,71 @@ class _VisibiliteSelectorState extends State<VisibiliteSelector> {
         const SectionLabel('Unité concernée'),
         const SizedBox(height: 8),
         DropdownButtonFormField<String>(
-          initialValue: _selectedUnite,
+          initialValue: _selectedUnite?.id,
           decoration: _fieldDecoration('Sélectionner une unité'),
           style: TextStyle(color: AppColors.marine),
           icon: const Icon(Icons.expand_more, color: AppColors.turquoise),
-          items: widget.mockUnites
-              .map((unite) => DropdownMenuItem(value: unite, child: Text(unite)))
+          items: widget.unites
+              .map((unite) => DropdownMenuItem(value: unite.id, child: Text(unite.nom)))
               .toList(),
-          onChanged: (value) => setState(() {
-            _selectedUnite = value;
+          onChanged: (uniteId) => setState(() {
+            _selectedUnite = uniteId == null
+                ? null
+                : widget.unites.firstWhere((u) => u.id == uniteId);
+            _reinitialiserPresences();
             _notify();
           }),
         ),
         const SizedBox(height: 20),
         const SectionLabel('Usagers présents'),
         const SizedBox(height: 8),
-        Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: AppColors.turquoise.withValues(alpha: 0.4)),
+        if (_selectedUnite == null)
+          Text(
+            "Sélectionnez d'abord une unité.",
+            style: TextStyle(fontSize: 12, color: AppColors.marine.withValues(alpha: 0.5)),
+          )
+        else if (usagersUnite.isEmpty)
+          Text(
+            'Aucun usager dans cette unité.',
+            style: TextStyle(fontSize: 12, color: AppColors.marine.withValues(alpha: 0.5)),
+          )
+        else ...[
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppColors.turquoise.withValues(alpha: 0.4)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: usagersUnite.map((usager) {
+                final sansConsentement = widget.showConsentBadge &&
+                    usager.sansAutorisationImage(VisibiliteType.groupe);
+                return CheckboxListTile(
+                  value: _groupePresence[usager.id] ?? false,
+                  onChanged: (value) => setState(() {
+                    _groupePresence[usager.id] = value ?? false;
+                    _notify();
+                  }),
+                  title: Text(usager.nomComplet, style: TextStyle(color: AppColors.marine)),
+                  subtitle: sansConsentement
+                      ? const Align(alignment: Alignment.centerLeft, child: ConsentImageBadge())
+                      : null,
+                  activeColor: AppColors.turquoise,
+                  controlAffinity: ListTileControlAffinity.leading,
+                );
+              }).toList(),
+            ),
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: widget.mockUsagers.map((name) {
-              final sansConsentement = widget.showConsentBadge &&
-                  usagerSansAutorisationImage(resolveUsagerId(name), type: VisibiliteType.groupe);
-              return CheckboxListTile(
-                value: _groupePresence[name],
-                onChanged: (value) => setState(() {
-                  _groupePresence[name] = value ?? false;
-                  _notify();
-                }),
-                title: Text(name, style: TextStyle(color: AppColors.marine)),
-                subtitle: sansConsentement ? const Align(alignment: Alignment.centerLeft, child: ConsentImageBadge()) : null,
-                activeColor: AppColors.turquoise,
-                controlAffinity: ListTileControlAffinity.leading,
-              );
-            }).toList(),
+          const SizedBox(height: 6),
+          Text(
+            'Tous sélectionnés par défaut - décochez les absents.',
+            style: TextStyle(
+              fontSize: 11,
+              color: AppColors.marine.withValues(alpha: 0.5),
+            ),
           ),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          'Tous sélectionnés par défaut - décochez les absents.',
-          style: TextStyle(
-            fontSize: 11,
-            color: AppColors.marine.withValues(alpha: 0.5),
-          ),
-        ),
+        ],
       ],
     );
   }

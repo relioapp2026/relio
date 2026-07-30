@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
 
 import '../data/mock_data.dart';
+import '../models/unite.dart';
+import '../models/usager_affichage.dart';
 import '../services/auth_service.dart';
+import '../services/referentiel_service.dart';
 import '../theme/app_colors.dart';
+import '../utils/chargement_referentiel.dart';
 import '../utils/fade_route.dart';
 import '../widgets/auth_background.dart';
+import '../widgets/etat_referentiel.dart';
 import '../widgets/feed_bottom_nav.dart';
 import '../widgets/feed_header.dart';
 import 'agenda_pro_screen.dart';
@@ -12,8 +17,6 @@ import 'aide_support_screen.dart';
 import 'cahier_de_liaison_screen.dart';
 import 'changer_mot_de_passe_screen.dart';
 import 'confidentialite_rgpd_screen.dart';
-// TEMPORAIRE — R3, voir la tuile « Diagnostic référentiel » plus bas.
-import 'diagnostic_referentiel_screen.dart';
 import 'documents_famille_screen.dart';
 import 'documents_pro_screen.dart';
 import 'edit_profil_screen.dart';
@@ -31,11 +34,63 @@ import 'selection_usager_journal_screen.dart';
 import 'unite_detail_screen.dart';
 
 /// Page Profil : contenu conditionné par le rôle connecté (famille ou pro).
-class ProfilScreen extends StatelessWidget {
+class ProfilScreen extends StatefulWidget {
   const ProfilScreen({super.key, required this.isPro});
 
   /// Donnée factice simulant le rôle connecté ("famille" ou "pro").
   final bool isPro;
+
+  @override
+  State<ProfilScreen> createState() => _ProfilScreenState();
+}
+
+/// Les unités du pro connecté et leurs usagers, pour la section « Mes unités ».
+class _MesUnites {
+  const _MesUnites({required this.unites, required this.usagers});
+
+  final List<Unite> unites;
+  final List<UsagerAffichage> usagers;
+
+  List<UsagerAffichage> usagersDe(Unite unite) =>
+      usagers.where((u) => u.uniteId == unite.id).toList();
+}
+
+class _ProfilScreenState extends State<ProfilScreen> {
+  final _service = ReferentielService();
+
+  bool _chargement = false;
+  ChargementReferentiel<_MesUnites>? _mesUnites;
+
+  bool get isPro => widget.isPro;
+
+  @override
+  void initState() {
+    super.initState();
+    // Section réservée aux pros : ne rien lire du tout côté famille, plutôt
+    // que de charger puis masquer.
+    if (isPro) _chargerMesUnites();
+  }
+
+  Future<void> _chargerMesUnites() async {
+    setState(() => _chargement = true);
+
+    final resultat = await chargerReferentiel<_MesUnites>(() async {
+      final unitesAcces = AuthService.currentProUser?.unitesAcces ?? const <String>[];
+      if (unitesAcces.isEmpty) {
+        return const _MesUnites(unites: [], usagers: []);
+      }
+      // Deux lectures groupées pour toute la section, jamais une par unité.
+      final unites = await _service.getUnites(unitesAcces);
+      final usagers = await _service.getUsagersAffichagePourPro(unitesAcces);
+      return _MesUnites(unites: unites, usagers: usagers);
+    });
+
+    if (!mounted) return;
+    setState(() {
+      _mesUnites = resultat;
+      _chargement = false;
+    });
+  }
 
   String get _nom {
     if (!isPro) return 'Marie Dubois';
@@ -49,9 +104,9 @@ class ProfilScreen extends StatelessWidget {
     return letters.toUpperCase();
   }
 
-  void _handleUniteDetail(BuildContext context, UniteAvecUsagers unite) {
+  void _handleUniteDetail(BuildContext context, Unite unite, List<UsagerAffichage> usagers) {
     Navigator.of(context).push(
-      fadeRoute(UniteDetailScreen(unite: unite)),
+      fadeRoute(UniteDetailScreen(unite: unite, usagers: usagers)),
     );
   }
 
@@ -228,17 +283,6 @@ class ProfilScreen extends StatelessWidget {
                           fadeRoute(const AideSupportScreen()),
                         ),
                       ),
-                      // TEMPORAIRE — R3 : point d'accès au livrable de
-                      // validation du chantier Référentiel (R2). À retirer
-                      // en même temps que diagnostic_referentiel_screen.dart.
-                      _MenuTile(
-                        icon: Icons.bug_report_outlined,
-                        label: 'Diagnostic référentiel (temporaire)',
-                        subtitle: 'Vérifier la lecture Firestore et les règles',
-                        onTap: () => Navigator.of(context).push(
-                          fadeRoute(const DiagnosticReferentielScreen()),
-                        ),
-                      ),
                     ]),
                     const SizedBox(height: 20),
                     _buildMenuGroup([
@@ -357,42 +401,63 @@ class ProfilScreen extends StatelessWidget {
           ),
         ],
       ),
-      child: Column(
-        children: [
-          for (var i = 0; i < mockUnitesAvecUsagers.length; i++) ...[
-            if (i > 0)
-              Divider(height: 1, indent: 16, endIndent: 16, color: AppColors.marine.withValues(alpha: 0.08)),
-            InkWell(
-              onTap: () => _handleUniteDetail(context, mockUnitesAvecUsagers[i]),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                child: Row(
-                  children: [
-                    _IconBadge(icon: Icons.groups_outlined, color: AppColors.turquoise),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            mockUnitesAvecUsagers[i].nom,
-                            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.marine),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            '${mockUnitesAvecUsagers[i].usagers.length} usagers',
-                            style: TextStyle(fontSize: 12, color: AppColors.marine.withValues(alpha: 0.55)),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Icon(Icons.chevron_right, color: AppColors.marine.withValues(alpha: 0.4)),
-                  ],
-                ),
+      child: _buildMesUnitesContenu(context),
+    );
+  }
+
+  Widget _buildMesUnitesContenu(BuildContext context) {
+    if (_chargement) return const ReferentielEnChargement();
+
+    final resultat = _mesUnites;
+    if (resultat == null) return const SizedBox.shrink();
+    if (resultat.enEchec) {
+      return ReferentielEnErreur(resultat: resultat, onReessayer: _chargerMesUnites);
+    }
+
+    final mesUnites = resultat.valeur!;
+    if (mesUnites.unites.isEmpty) {
+      return const ReferentielVide(message: "Aucune unité rattachée à votre compte.");
+    }
+
+    return Column(
+      children: [
+        for (var i = 0; i < mesUnites.unites.length; i++) ...[
+          if (i > 0)
+            Divider(height: 1, indent: 16, endIndent: 16, color: AppColors.marine.withValues(alpha: 0.08)),
+          _buildUniteRow(context, mesUnites.unites[i], mesUnites.usagersDe(mesUnites.unites[i])),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildUniteRow(BuildContext context, Unite unite, List<UsagerAffichage> usagers) {
+    return InkWell(
+      onTap: () => _handleUniteDetail(context, unite, usagers),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            _IconBadge(icon: Icons.groups_outlined, color: AppColors.turquoise),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    unite.nom,
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.marine),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${usagers.length} usagers',
+                    style: TextStyle(fontSize: 12, color: AppColors.marine.withValues(alpha: 0.55)),
+                  ),
+                ],
               ),
             ),
+            Icon(Icons.chevron_right, color: AppColors.marine.withValues(alpha: 0.4)),
           ],
-        ],
+        ),
       ),
     );
   }

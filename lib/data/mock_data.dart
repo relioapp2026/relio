@@ -12,20 +12,31 @@ import '../models/visibilite_type.dart';
 import '../theme/app_colors.dart';
 
 /// Données factices partagées le temps que Firestore soit branché.
-/// À terme : usagers filtrés par unitesAcces du pro, unités de son
-/// établissement.
 ///
-/// [MockUsager] et [MockUnite] forment le modèle de référence (id stable +
-/// attributs). Les usagers sont réunis dans UN SEUL catalogue
-/// (`mockUsagersCatalogue`, ids `usager_001` à `usager_055`) et les unités
-/// dans UN SEUL catalogue (`mockUnitesCatalogue`, ids `unite_001` à
-/// `unite_003` — Proximité/Polyvalence/Orientation, les 3 vraies unités de
-/// l'établissement). Les anciens catalogues séparés `mockUnitesAgendaCatalogue`
-/// (Agenda/Publications) et `mockUnitesFamillesCatalogue`
-/// (Documents/Messages/Profil), avec leurs noms fictifs non coïncidents
-/// ("Unité Papillons" ≠ "Unité Les Papillons"), ont été fusionnés dans ce
-/// catalogue unique.
+/// ---
+/// ## Chantier Référentiel / R3a — ce que ce fichier n'est plus
 ///
+/// **Le référentiel (établissement, unités, usagers) vit désormais sur
+/// Firestore.** Les écrans le lisent via `ReferentielService` et
+/// `UsagerAffichage` ; plus aucun d'entre eux ne lit ici l'identité d'un
+/// usager. `mockUsagersCatalogue` n'a été conservé que pour **deux ponts
+/// temporaires**, explicitement délimités :
+///
+/// 1. **Le consentement image** — R2 a posé `allow write: if false` sur la
+///    collection `usagers`, donc les 55 documents semés portent `consentImage`
+///    à `false`. Le lire depuis Firestore afficherait « aucun consentement »
+///    partout et casserait **silencieusement** le test du badge d'alerte. Seul
+///    `usagerSansAutorisationImage` (et `UsagerAffichage` qui lui délègue) lit
+///    encore ce champ ici. Levée prévue : **R3b**.
+/// 2. **Le lien usager → famille** (`mockFamilles`, `familleUidPourUsagerId`)
+///    — la règle `users/{uid}` n'autorise chacun à lire que son propre
+///    document, donc aucune requête ne peut retrouver les comptes famille
+///    rattachés à un usager. Levée prévue : **chantier Messagerie**.
+///
+/// Tout le reste de ce fichier (publications, agenda, documents, messages,
+/// notifications) reste factice jusqu'à son propre chantier de câblage.
+///
+/// ---
 /// CAS DE TEST HOMONYMIE VOLONTAIRE — conservé : deux entrées distinctes
 /// s'appellent "Emma Bernard" (`usager_017`, Unité Polyvalence, rattachée à
 /// `fam_bernard` ; et `usager_032`, Unité Orientation, aucune famille
@@ -33,22 +44,14 @@ import '../theme/app_colors.dart';
 /// couple sert à vérifier qu'un filtrage par id (et non par nom) distingue
 /// bien les deux personnes.
 ///
-/// Chantier Référentiel / R1 — ce catalogue est désormais le miroir Dart de
-/// `tools/seed/data/referentiel.json`, qui peuple les collections Firestore
-/// `etablissements`/`unites`/`usagers`. Les deux doivent rester cohérents
-/// (mêmes ids, mêmes noms, mêmes unités) jusqu'au débranchement des écrans
-/// en R3.
+/// Ce catalogue reste le miroir Dart de `tools/seed/data/referentiel.json` et
+/// doit lui rester cohérent (mêmes ids, mêmes unités) tant que les deux ponts
+/// ci-dessus ne sont pas levés.
 const mockEtablissementId = 'etab_001';
 
-class MockUnite {
-  const MockUnite({required this.id, required this.nom, required this.etablissementId});
-
-  final String id;
-
-  /// Affichage uniquement — ne jamais comparer/filtrer sur ce champ.
-  final String nom;
-  final String etablissementId;
-}
+// `MockUnite` a été supprimée en R3a : les unités sont lues sur Firestore
+// (`Unite`, `ReferentielService.getUnites`). Aucun écran n'a plus besoin d'un
+// catalogue d'unités local.
 
 class MockUsager {
   const MockUsager({
@@ -66,7 +69,8 @@ class MockUsager {
   final String nom;
   final int age;
 
-  /// Référence stable vers [MockUnite.id] — jamais un nom d'unité.
+  /// Référence stable vers l'id d'une unité (`unite_001` à `unite_003`) —
+  /// jamais un nom d'unité.
   final String uniteId;
   final Color avatarColor;
 
@@ -93,30 +97,15 @@ class MockUsager {
 }
 
 // --- Unités -------------------------------------------------------------
-// Catalogue unique des 3 vraies unités de l'établissement (remplace les
-// anciens catalogues séparés Agenda/Publications et Documents/Messages/
-// Profil, dont les noms fictifs ne coïncidaient pas terme à terme).
-
-// Chantier Référentiel / R1 — le préfixe "Unité " a été retiré des libellés :
-// `nom` est la seule source du libellé affiché, et aucun écran ne doit
-// concaténer "Unité " devant. Valeurs alignées sur `referentiel.json`.
-const mockUnitesCatalogue = [
-  MockUnite(id: 'unite_001', nom: 'Proximité', etablissementId: mockEtablissementId),
-  MockUnite(id: 'unite_002', nom: 'Polyvalence', etablissementId: mockEtablissementId),
-  MockUnite(id: 'unite_003', nom: 'Orientation', etablissementId: mockEtablissementId),
-];
-
-/// Noms des 3 unités, pour les sélecteurs (CreatePublicationScreen,
-/// CreateEvenementScreen, envoi de document/message).
-final mockUnites = mockUnitesCatalogue.map((u) => u.nom).toList();
-
-/// Sous-ensemble volontairement restreint d'usagers (noms complets) pour le
-/// sélecteur "usager concerné" de CreatePublicationScreen/
-/// CreateEvenementScreen — pas les 35 usagers du catalogue, pour garder ces
-/// listes (recherche individuelle, cases "présents") maniables dans la démo.
-final mockUsagers = const ['usager_031', 'usager_032', 'usager_033', 'usager_034', 'usager_035']
-    .map((id) => findUsagerById(id)!.nomComplet)
-    .toList();
+// Supprimées en R3a. `mockUnitesCatalogue` (les 3 unités), `mockUnites`
+// (leurs libellés) et `mockUsagers` (un sous-ensemble de 5 usagers, choisi
+// « pour garder les listes maniables en démo ») n'ont plus de consommateur :
+// les sélecteurs reçoivent désormais les vraies unités et les vrais usagers
+// du périmètre du pro connecté, lus sur Firestore.
+//
+// Les ids restent `unite_001` à `unite_003`, alignés sur
+// `tools/seed/data/referentiel.json`. Rappel R1 : `nom` est la seule source
+// du libellé affiché, aucun écran ne doit concaténer « Unité » devant.
 
 // Dates relatives à "maintenant" pour que les événements factices restent
 // toujours "à venir", quel que soit le jour d'exécution de l'app.
@@ -180,8 +169,8 @@ final mockEvenements = [
   // Deux événements individuels pour deux usagers différents qui portent
   // EXACTEMENT le même nom ("Emma Bernard") : usager_017 (Unité
   // Polyvalence, rattachée à fam_bernard) et usager_032 (Unité Orientation,
-  // aucune famille rattachée). Impossible de les distinguer par nom
-  // (`resolveUsagerId('Emma Bernard')` retourne `null`, ambigu) :
+  // aucune famille rattachée). Impossible de les distinguer par nom — c'est
+  // précisément ce cas qui a fait supprimer la résolution nom → id en R3a.
   // `usagersConcernesIds` est donc fixé explicitement ici avec le bon id,
   // pas résolu depuis un nom. Sert à prouver que agenda_famille_screen.dart,
   // en filtrant par id, affiche uniquement l'événement du bon usager.
@@ -270,20 +259,22 @@ class FamilleInfo {
 
   final String nom;
 
-  /// Référence stable vers [MockUsager.id] (voir `mockUsagersCatalogue`) —
-  /// remplace l'ancien champ `usagerNom`.
+  /// Référence stable vers un usager de la collection Firestore `usagers`
+  /// (`usager_001` à `usager_055`).
   final String usagerId;
 
-  /// Prénom de l'usager rattaché, dérivé de [usagerId]. Conservé pour ne pas
-  /// casser les écrans (Documents/Messages) qui lisent encore `usagerNom`
-  /// avant leur migration en Session C.
+  /// Prénom de l'usager rattaché, dérivé de [usagerId]. Affiché dans les
+  /// listes « qui a consulté » de Documents/Messages.
+  ///
+  /// Lit encore le catalogue mock, comme le reste de `mockFamilles` : ces
+  /// écrans partent au chantier Messagerie, pas en R3a (voir l'en-tête de ce
+  /// fichier, second pont temporaire).
   String get usagerNom =>
       mockUsagersCatalogue.firstWhere((u) => u.id == usagerId).prenom;
 
-  /// Chantier 0 / Session C2a — nom complet de l'usager rattaché, dérivé de
-  /// [usagerId]. Utilisé par [familleUidPourUsager] en plus de [usagerNom]
-  /// pour que la résolution par lien famille fonctionne aussi bien à partir
-  /// d'un prénom seul que d'un nom complet.
+  /// Nom complet de l'usager rattaché, dérivé de [usagerId]. Affiché par les
+  /// écrans Documents/Messages et par l'en-tête du Cahier de liaison côté
+  /// famille.
   String get usagerNomComplet =>
       mockUsagersCatalogue.firstWhere((u) => u.id == usagerId).nomComplet;
 }
@@ -308,29 +299,13 @@ const mockFamilleConnecteeUid = 'fam_dubois';
 
 final _toutesLesFamilles = mockFamilles.keys.toList();
 
-/// Retrouve l'uid de la famille rattachée à un usager, à partir de son
-/// prénom OU de son nom complet (Chantier 0 / Session C2a — élargi pour que
-/// les écrans affichant le nom complet dans un sélecteur continuent de
-/// résoudre correctement, y compris pour un homonyme comme "Emma Bernard" :
-/// la comparaison reste circonscrite aux 8 usagers réellement rattachés à
-/// une famille, donc jamais ambiguë, contrairement à une recherche dans tout
-/// le catalogue). Utilisé pour résoudre les destinataires d'un
-/// document/message "individuel" ou "groupe" créé depuis le formulaire
-/// d'envoi.
-String? familleUidPourUsager(String usagerNom) {
-  for (final entry in mockFamilles.entries) {
-    if (entry.value.usagerNom == usagerNom || entry.value.usagerNomComplet == usagerNom) {
-      return entry.key;
-    }
-  }
-  return null;
-}
-
-/// Chantier 0 / Session C2a — équivalent de [familleUidPourUsager] mais par
-/// id stable plutôt que par prénom. À préférer dès qu'un id est disponible
-/// (ex: `VisibiliteSelection.usagerConcerneId`) : contrairement à la
-/// comparaison de prénoms, celle-ci ne peut pas se tromper d'usager en cas
-/// d'homonyme.
+/// Retrouve l'uid de la famille rattachée à un usager, par id stable.
+///
+/// Chantier Référentiel / R3a — la variante par nom (`familleUidPourUsager`)
+/// a été supprimée avec `resolveUsagerId` : toute la chaîne d'envoi de
+/// document/message porte désormais des ids de bout en bout, ce qui ferme la
+/// classe de bug des homonymes (voir `usager_017`/`usager_032`, deux « Emma
+/// Bernard » dans deux unités — un nom ne désigne pas un usager).
 String? familleUidPourUsagerId(String usagerId) {
   for (final entry in mockFamilles.entries) {
     if (entry.value.usagerId == usagerId) return entry.key;
@@ -548,101 +523,38 @@ final List<MockUsager> mockUsagersCatalogue = [
   MockUsager(id: 'usager_055', prenom: 'Naïa', nom: 'Roussel', age: 19, uniteId: 'unite_003', avatarColor: AppColors.marine),
 ];
 
-/// Prénoms des usagers ayant une famille rattachée (mock). Conservée pour
-/// compatibilité ascendante ; les écrans Documents/Messages utilisent
-/// désormais [mockUsagersAvecFamillesNomComplet] pour l'affichage (Session
-/// C2a — uniformisation avec le sélecteur d'Agenda/Publications).
-final mockUsagersAvecFamilles = mockFamilles.values.map((f) => f.usagerNom).toList();
-
-/// Chantier 0 / Session C2a — noms complets (prénom + nom) des usagers ayant
-/// une famille rattachée, même ordre que [mockUsagersAvecFamilles]. Affiché
-/// dans le sélecteur d'usager d'envoyer_document_screen.dart/
-/// envoyer_message_screen.dart pour éviter toute confusion entre usagers de
-/// prénom identique (voir usager_017/usager_032, "Emma Bernard") — la
-/// résolution vers l'id reste correcte grâce à `familleUidPourUsager`, qui
-/// compare maintenant sur le prénom ET le nom complet.
-final mockUsagersAvecFamillesNomComplet =
-    mockFamilles.values.map((f) => f.usagerNomComplet).toList();
-
-class UsagerUnite {
-  const UsagerUnite({
-    required this.prenom,
-    required this.nom,
-    required this.age,
-    required this.avatarColor,
-  });
-
-  final String prenom;
-  final String nom;
-  final int age;
-  final Color avatarColor;
-}
-
-class UniteAvecUsagers {
-  const UniteAvecUsagers({required this.id, required this.nom, required this.usagers});
-
-  /// Id stable (`mockUnitesCatalogue`), à utiliser pour identifier/naviguer
-  /// plutôt que sur [nom].
-  final String id;
-  final String nom;
-  final List<UsagerUnite> usagers;
-}
-
-// Donnée factice : usagers de chaque unité du pro connecté, pour le détail
-// accessible depuis "Mes unités" dans le Profil. L'Unité Polyvalence
-// contient volontairement les usagers déjà rattachés à une famille dans
-// mockFamilles, pour rester cohérent avec Documents/Messages.
-final mockUnitesAvecUsagers = mockUnitesCatalogue.map((unite) {
-  final usagers = mockUsagersCatalogue
-      .where((usager) => usager.uniteId == unite.id)
-      .map((usager) => UsagerUnite(
-            prenom: usager.prenom,
-            nom: usager.nom,
-            age: usager.age,
-            avatarColor: usager.avatarColor,
-          ))
-      .toList();
-  return UniteAvecUsagers(id: unite.id, nom: unite.nom, usagers: usagers);
-}).toList();
-
-// -----------------------------------------------------------------------
-// CHANTIER 0 / SESSION B — résolution nom → id pour les données mock
-// -----------------------------------------------------------------------
-// Utilisées ci-dessous pour renseigner les nouveaux champs id (en parallèle
-// des anciens champs "Nom"/"Ids" qui contiennent en réalité des noms — voir
-// les commentaires DEPRECATED dans document.dart/message.dart/evenement.dart)
-// et par `VisibiliteSelector` (Session B) pour émettre des ids en plus des
-// noms choisis dans l'UI.
-
-/// Résout un nom d'usager (prénom seul ou nom complet, tel que choisi dans
-/// l'UI) vers son vrai id stable dans [mockUsagersCatalogue]. Retourne
-/// `null` si non résolvable — volontairement prudent face aux homonymes
-/// (voir `usager_017`/`usager_032`, "Emma Bernard") : mieux vaut ne pas
-/// résoudre que résoudre au hasard.
+/// Chantier Référentiel / R3a — ids des usagers ayant une famille rattachée.
 ///
-/// Stratégie :
-/// 1. Lien famille (`familleUidPourUsager`) : résout un prénom de façon non
-///    ambiguë pour le monde Documents/Messages/Profil (chaque prénom de
-///    `mockFamilles` désigne un usager précis, indépendamment des
-///    homonymes qui peuvent exister ailleurs dans le catalogue).
-/// 2. Sinon, recherche d'un nom complet unique dans le catalogue fusionné —
-///    si 0 ou plusieurs usagers correspondent, retourne `null`.
-String? resolveUsagerId(String nomOuPrenom) {
-  final familleUid = familleUidPourUsager(nomOuPrenom);
-  if (familleUid != null) return mockFamilles[familleUid]!.usagerId;
+/// Remplace les anciennes listes de noms (`mockUsagersAvecFamilles` /
+/// `mockUsagersAvecFamillesNomComplet`, supprimées) : les sélecteurs d'envoi
+/// de document/message travaillent désormais sur des ids, plus sur des
+/// chaînes affichées.
+///
+/// **Reste sur le mock — second pont temporaire de R3a.** Firestore ne peut
+/// pas répondre à la question « quels usagers ont une famille rattachée » :
+/// la règle `users/{uid}` n'autorise chacun à lire que son propre document
+/// (`firestore.rules`), donc aucune requête ne peut relier un usager aux
+/// comptes famille qui le suivent. À reprendre au chantier Messagerie.
+final mockUsagerIdsAvecFamilles =
+    mockFamilles.values.map((f) => f.usagerId).toList();
 
-  final correspondances =
-      mockUsagersCatalogue.where((u) => u.nomComplet == nomOuPrenom).toList();
-  return correspondances.length == 1 ? correspondances.first.id : null;
-}
+// `UsagerUnite`, `UniteAvecUsagers` et `mockUnitesAvecUsagers` ont été
+// supprimés en R3a : « Mes unités » (Profil) et le détail d'une unité lisent
+// désormais `ReferentielService.getUnites` et
+// `ReferentielService.getUsagersAffichageParUnite`.
 
-/// Résout un nom d'unité (tel que choisi dans l'UI) vers son vrai id
-/// stable dans [mockUnitesCatalogue]. Retourne `null` si aucune unité ne
-/// correspond.
-String? resolveUniteId(String nom) {
-  final correspondances = mockUnitesCatalogue.where((u) => u.nom == nom).toList();
-  return correspondances.length == 1 ? correspondances.first.id : null;
-}
+// -----------------------------------------------------------------------
+// RÉSOLUTION NOM → ID : SUPPRIMÉE EN R3a
+// -----------------------------------------------------------------------
+// `resolveUsagerId` (et sa dépendance `familleUidPourUsager`) traduisaient un
+// nom choisi dans l'UI vers un id stable. Elles retournaient `null` sur un
+// homonyme — deux « Emma Bernard » dans deux unités différentes ne peuvent pas
+// être départagées par leur nom — ce qui rendait un usager silencieusement
+// non sélectionnable.
+//
+// `VisibiliteSelector` porte désormais des `UsagerAffichage` complets, donc
+// des ids, et n'a plus rien à résoudre. Les sélecteurs d'unité fonctionnent de
+// la même façon, sur `Unite` plutôt que sur des libellés.
 
 /// Cherche un usager par id dans le catalogue fusionné. `null` si absent
 /// (ou si [id] est `null`) — utilisé par le badge de consentement image.
@@ -874,7 +786,7 @@ final mockDocuments = [
     type: TypeDocument.autre,
     description: 'Sortie à la piscine municipale, prévoir maillot et serviette.',
     portee: VisibiliteType.individuelle,
-    usagerId: resolveUsagerId('Lucas'),
+    usagerId: 'usager_013', // Lucas Dubois (fam_dubois)
     envoyePar: mockProConnecteUid,
     envoyeParNom: mockProConnecteNom,
     dateEnvoi: _relative(-2, 9, 20),
@@ -895,7 +807,7 @@ final mockMessages = [
     id: 'msg1',
     contenu: 'Bonjour, Lucas a très bien mangé ce midi et a beaucoup aimé l\'atelier peinture cet après-midi 🎨',
     portee: VisibiliteType.individuelle,
-    usagersConcernesIds: ['Lucas'].map(resolveUsagerId).whereType<String>().toList(),
+    usagersConcernesIds: const ['usager_013'], // Lucas Dubois (fam_dubois)
     expediteurId: mockProConnecteUid,
     expediteurNom: mockProConnecteNom,
     dateEnvoi: _relative(-1, 16, 0),

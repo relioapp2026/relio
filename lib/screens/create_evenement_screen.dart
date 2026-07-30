@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
-import '../data/mock_data.dart';
 import '../models/visibilite_type.dart';
 import '../theme/app_colors.dart';
 import '../widgets/auth_background.dart';
+import '../widgets/chargement_perimetre_pro.dart';
 import '../widgets/relio_footer.dart';
 import '../widgets/section_label.dart';
 import '../widgets/visibilite_selector.dart';
@@ -85,30 +85,27 @@ class _CreateEvenementScreenState extends State<CreateEvenementScreen> {
     return '${h}h$m';
   }
 
-  // Chantier 0 / Session C2a — cet écran ne construit pas encore d'objet
-  // Evenement réel (juste une validation + un SnackBar "à brancher sur
-  // Firestore"). La validation ci-dessous reste volontairement basée sur les
-  // champs noms de VisibiliteSelection (usagerId/uniteId/usagersPresentsIds)
-  // pour ne rien changer au comportement actuel — y compris pour un nom
-  // ambigu comme "Emma Bernard" (monde Agenda), qui reste sélectionnable ici
-  // même si sa résolution en id échoue. Quand cet écran sera réellement
-  // câblé (Firestore ou mockEvenements.insert), utiliser les champs id de
-  // VisibiliteSelection (usagerConcerneId / uniteConcerneeId /
-  // usagersPresentsConcernesIds) pour construire l'Evenement, pas les noms.
+  // Cet écran ne construit pas encore d'objet Evenement réel (juste une
+  // validation + un SnackBar « à brancher sur Firestore »). La validation
+  // porte désormais sur les ids de VisibiliteSelection.
+  //
+  // Le cas d'homonymie « Emma Bernard » (usager_017 / usager_032) n'est plus
+  // un problème depuis R3a : le sélecteur porte l'usager choisi, pas son
+  // libellé, donc les deux sont distinguables et tous deux sélectionnables.
   void _handleCreer() {
-    if (_visibilite.type == VisibiliteType.individuelle && _visibilite.usagerId == null) {
+    if (_visibilite.type == VisibiliteType.individuelle && _visibilite.usagerConcerneId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Merci de sélectionner un usager')),
       );
       return;
     }
-    if (_visibilite.type == VisibiliteType.groupe && _visibilite.uniteId == null) {
+    if (_visibilite.type == VisibiliteType.groupe && _visibilite.uniteConcerneeId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Merci de sélectionner une unité')),
       );
       return;
     }
-    if (_visibilite.type == VisibiliteType.groupe && _visibilite.usagersPresentsIds.isEmpty) {
+    if (_visibilite.type == VisibiliteType.groupe && _visibilite.usagersPresentsConcernesIds.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Merci de sélectionner au moins un usager présent')),
       );
@@ -182,11 +179,13 @@ class _CreateEvenementScreenState extends State<CreateEvenementScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        VisibiliteSelector(
-                          typeLabel: "Type d'événement",
-                          mockUsagers: mockUsagers,
-                          mockUnites: mockUnites,
-                          onChanged: (value) => setState(() => _visibilite = value),
+                        ChargementPerimetrePro(
+                          builder: (context, perimetre) => VisibiliteSelector(
+                            typeLabel: "Type d'événement",
+                            usagers: perimetre.usagers,
+                            unites: perimetre.unites,
+                            onChanged: (value) => setState(() => _visibilite = value),
+                          ),
                         ),
                         const SizedBox(height: 20),
                         const SectionLabel('Titre'),

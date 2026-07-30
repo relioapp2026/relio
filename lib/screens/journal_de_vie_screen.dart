@@ -60,19 +60,17 @@ class JournalDeVieScreen extends StatefulWidget {
     this.usagerName = 'Léo Martin',
     this.usagerId,
     this.usagerAge = 8,
-    this.souvenirsCount = 47,
     this.isPro = false,
   });
 
   final String usagerName;
 
-  /// Chantier 0 / Session C2a — id stable de l'usager, transmis en plus de
-  /// [usagerName] (qui reste utilisé pour l'affichage). `null` si l'appelant
-  /// n'a pas pu résoudre d'id (voir selection_usager_journal_screen.dart).
-  /// Pas encore utilisé pour filtrer le journal dans cet écran.
+  /// Id stable de l'usager, transmis en plus de [usagerName] (qui reste
+  /// utilisé pour l'affichage). Pas encore utilisé pour filtrer le journal
+  /// dans cet écran — ce sera le cas quand les publications alimenteront
+  /// réellement le Journal de vie (chantier Publications).
   final String? usagerId;
   final int usagerAge;
-  final int souvenirsCount;
 
   /// Affiche les actions éditer/supprimer sur chaque entrée (vue pro).
   final bool isPro;
@@ -241,20 +239,11 @@ class _JournalDeVieScreenState extends State<JournalDeVieScreen> {
                         color: AppColors.marine.withValues(alpha: 0.6),
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        const Icon(Icons.favorite, color: AppColors.roseViolet, size: 16),
-                        const SizedBox(width: 4),
-                        Text(
-                          '${widget.souvenirsCount} souvenirs partagés',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: AppColors.marine.withValues(alpha: 0.6),
-                          ),
-                        ),
-                      ],
-                    ),
+                    // Le compteur « N souvenirs partagés » a été retiré en
+                    // R3a : il affichait une valeur factice sans contrepartie
+                    // en base. Il réapparaîtra à l'étape 5 du chantier
+                    // Publications, calculé sur les vraies publications de
+                    // l'usager.
                   ],
                 ),
               ),

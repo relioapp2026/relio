@@ -8,12 +8,20 @@ import '../models/visibilite_type.dart';
 import '../services/auth_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/auth_background.dart';
+import '../widgets/chargement_perimetre_pro.dart';
 import '../widgets/dashed_border_painter.dart';
 import '../widgets/fichier_icon.dart';
 import '../widgets/section_label.dart';
 import '../widgets/simple_turquoise_header.dart';
 import '../widgets/visibilite_selector.dart';
 
+/// Résout les comptes famille destinataires d'une sélection.
+///
+/// **Reste sur `mockFamilles` — second pont temporaire de R3a.** La règle
+/// `users/{uid}` de `firestore.rules` n'autorise chacun à lire que son propre
+/// document : aucune requête cliente ne peut retrouver les comptes famille
+/// rattachés à un usager. Seul l'affichage du sélecteur a été migré vers
+/// Firestore ; la résolution des destinataires attend le chantier Messagerie.
 List<String> _resolveDestinataires(VisibiliteSelection selection) {
   switch (selection.type) {
     case VisibiliteType.individuelle:
@@ -159,12 +167,20 @@ class _EnvoyerDocumentScreenState extends State<EnvoyerDocumentScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        VisibiliteSelector(
-                          typeLabel: 'Portée du document',
-                          mockUsagers: mockUsagersAvecFamillesNomComplet,
-                          mockUnites: mockUnites,
-                          onChanged: (value) => setState(() => _visibilite = value),
-                          restrictionEtablissementActive: true,
+                        ChargementPerimetrePro(
+                          // Un document s'adresse à une famille : seuls les
+                          // usagers qui en ont une rattachée sont proposés.
+                          filtreUsagers: (usager) =>
+                              mockUsagerIdsAvecFamilles.contains(usager.id),
+                          builder: (context, perimetre) => VisibiliteSelector(
+                            typeLabel: 'Portée du document',
+                            usagers: perimetre.usagers,
+                            unites: perimetre.unites,
+                            onChanged: (value) => setState(() => _visibilite = value),
+                            restrictionEtablissementActive: true,
+                            messageAucunUsager:
+                                'Aucun usager avec une famille rattachée dans vos unités.',
+                          ),
                         ),
                         const SizedBox(height: 20),
                         const SectionLabel('Type de document'),

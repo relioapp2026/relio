@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
-import '../data/mock_data.dart';
 import '../models/visibilite_type.dart';
 import '../theme/app_colors.dart';
 import '../widgets/auth_background.dart';
+import '../widgets/chargement_perimetre_pro.dart';
 import '../widgets/dashed_border_painter.dart';
 import '../widgets/relio_footer.dart';
 import '../widgets/section_label.dart';
@@ -44,26 +44,24 @@ class _CreatePublicationScreenState extends State<CreatePublicationScreen> {
     setState(() => _photos.removeAt(index));
   }
 
-  // Chantier 0 / Session C2a — cet écran ne construit pas encore de
-  // Publication réelle (pas de modèle branché ici, voir Session C2b). La
-  // validation reste sur les champs noms de VisibiliteSelection pour ne rien
-  // changer au comportement actuel. Quand cet écran sera câblé, utiliser les
-  // champs id (usagerConcerneId / uniteConcerneeId /
-  // usagersPresentsConcernesIds) pour construire la Publication.
+  // Cet écran ne construit pas encore de Publication réelle (câblage prévu au
+  // chantier Publications). La validation porte désormais sur les ids de
+  // VisibiliteSelection — ce sont eux qu'il faudra passer au modèle le jour du
+  // câblage, jamais les libellés affichés.
   void _handlePublish() {
-    if (_visibilite.type == VisibiliteType.individuelle && _visibilite.usagerId == null) {
+    if (_visibilite.type == VisibiliteType.individuelle && _visibilite.usagerConcerneId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Merci de sélectionner un usager')),
       );
       return;
     }
-    if (_visibilite.type == VisibiliteType.groupe && _visibilite.uniteId == null) {
+    if (_visibilite.type == VisibiliteType.groupe && _visibilite.uniteConcerneeId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Merci de sélectionner une unité')),
       );
       return;
     }
-    if (_visibilite.type == VisibiliteType.groupe && _visibilite.usagersPresentsIds.isEmpty) {
+    if (_visibilite.type == VisibiliteType.groupe && _visibilite.usagersPresentsConcernesIds.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Merci de sélectionner au moins un usager présent')),
       );
@@ -130,12 +128,14 @@ class _CreatePublicationScreenState extends State<CreatePublicationScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        VisibiliteSelector(
-                          typeLabel: 'Type de publication',
-                          mockUsagers: mockUsagers,
-                          mockUnites: mockUnites,
-                          onChanged: (value) => setState(() => _visibilite = value),
-                          showConsentBadge: true,
+                        ChargementPerimetrePro(
+                          builder: (context, perimetre) => VisibiliteSelector(
+                            typeLabel: 'Type de publication',
+                            usagers: perimetre.usagers,
+                            unites: perimetre.unites,
+                            onChanged: (value) => setState(() => _visibilite = value),
+                            showConsentBadge: true,
+                          ),
                         ),
                         const SizedBox(height: 20),
                         const SectionLabel('Photos'),

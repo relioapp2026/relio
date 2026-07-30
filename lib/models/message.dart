@@ -27,12 +27,12 @@ class Message {
   /// Renseigné uniquement si `portee == etablissement`.
   final String? etablissementId;
 
-  /// Ids stables (`mockUsagersCatalogue`) des usagers concernés. Renseigné
-  /// uniquement si `portee == individuelle`.
+  /// Ids stables des usagers concernés, dans la collection Firestore
+  /// `usagers`. Renseigné uniquement si `portee == individuelle`.
   final List<String> usagersConcernesIds;
 
-  /// Id stable (`mockUnitesCatalogue`) de l'unité concernée. Renseigné
-  /// uniquement si `portee == groupe`.
+  /// Id stable de l'unité concernée, dans la collection Firestore `unites`.
+  /// Renseigné uniquement si `portee == groupe`.
   final String? uniteConcerneeId;
 
   final String expediteurId;

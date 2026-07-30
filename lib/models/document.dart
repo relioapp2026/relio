@@ -31,12 +31,12 @@ class Document {
   final String description;
   final VisibiliteType portee;
 
-  /// Id stable (`mockUsagersCatalogue`). Renseigné uniquement si
-  /// `portee == individuelle`.
+  /// Id stable d'un document de la collection Firestore `usagers`. Renseigné
+  /// uniquement si `portee == individuelle`.
   final String? usagerId;
 
-  /// Id stable (`mockUnitesCatalogue`). Renseigné uniquement si
-  /// `portee == groupe`.
+  /// Id stable d'un document de la collection Firestore `unites`. Renseigné
+  /// uniquement si `portee == groupe`.
   final String? uniteId;
 
   final String envoyePar;

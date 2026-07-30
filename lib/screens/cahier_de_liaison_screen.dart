@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
 
 import '../data/mock_data.dart';
+import '../models/unite.dart';
+import '../models/usager_affichage.dart';
+import '../services/referentiel_service.dart';
 import '../theme/app_colors.dart';
+import '../utils/avatar_color.dart';
+import '../utils/chargement_referentiel.dart';
 import '../utils/fade_route.dart';
 import '../widgets/auth_background.dart';
 import '../widgets/count_badge.dart';
@@ -37,7 +42,7 @@ String _initials(String name) {
 /// usager) ; côté pro, après sélection d'un usager
 /// (SelectionUsagerJournalScreen). Reprend la mise en page de
 /// JournalDeVieScreen (carte usager + footer de navigation complet).
-class CahierDeLiaisonScreen extends StatelessWidget {
+class CahierDeLiaisonScreen extends StatefulWidget {
   const CahierDeLiaisonScreen({
     super.key,
     required this.usagerId,
@@ -48,6 +53,58 @@ class CahierDeLiaisonScreen extends StatelessWidget {
   final String usagerId;
   final String usagerName;
   final bool isPro;
+
+  @override
+  State<CahierDeLiaisonScreen> createState() => _CahierDeLiaisonScreenState();
+}
+
+/// L'identité de l'usager affichée dans l'en-tête : l'usager lui-même et
+/// l'unité dont il relève.
+class _EnteteUsager {
+  const _EnteteUsager({this.usager, this.unite});
+
+  final UsagerAffichage? usager;
+  final Unite? unite;
+}
+
+class _CahierDeLiaisonScreenState extends State<CahierDeLiaisonScreen> {
+  final _service = ReferentielService();
+
+  bool _chargement = true;
+  ChargementReferentiel<_EnteteUsager>? _entete;
+
+  String get usagerId => widget.usagerId;
+  String get usagerName => widget.usagerName;
+  bool get isPro => widget.isPro;
+
+  @override
+  void initState() {
+    super.initState();
+    _charger();
+  }
+
+  /// Charge l'usager puis son unité — deux lectures, la seconde dépendant de
+  /// la première (`uniteId` n'est connu qu'après avoir lu l'usager).
+  Future<void> _charger() async {
+    setState(() => _chargement = true);
+
+    final resultat = await chargerReferentiel<_EnteteUsager>(() async {
+      final usager = await _service.getUsagerAffichage(usagerId);
+      if (usager == null) return const _EnteteUsager();
+
+      final unites = await _service.getUnites([usager.uniteId]);
+      return _EnteteUsager(
+        usager: usager,
+        unite: unites.isEmpty ? null : unites.first,
+      );
+    });
+
+    if (!mounted) return;
+    setState(() {
+      _entete = resultat;
+      _chargement = false;
+    });
+  }
 
   void _handleTabTap(BuildContext context, FeedNavTab tab) {
     switch (tab) {
@@ -75,7 +132,6 @@ class CahierDeLiaisonScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final usager = findUsagerById(usagerId);
     final messages = messagesPourUsager(usagerId)
       ..sort((a, b) => b.dateEnvoi.compareTo(a.dateEnvoi));
     final documents = documentsPourUsager(usagerId)
@@ -104,7 +160,7 @@ class CahierDeLiaisonScreen extends StatelessWidget {
                 child: ListView(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
                   children: [
-                    _buildUsagerCard(usager),
+                    _buildUsagerCard(),
                     const SizedBox(height: 20),
                     _CahierTile(
                       icon: Icons.chat_bubble_outline,
@@ -170,10 +226,15 @@ class CahierDeLiaisonScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildUsagerCard(MockUsager? usager) {
-    final unitesCorrespondantes =
-        usager != null ? mockUnitesCatalogue.where((u) => u.id == usager.uniteId).toList() : const <MockUnite>[];
-    final uniteNom = unitesCorrespondantes.isEmpty ? null : unitesCorrespondantes.first.nom;
+  /// Carte d'identité de l'usager.
+  ///
+  /// Le nom vient toujours du paramètre de navigation, jamais de Firestore :
+  /// l'écran doit rester lisible pendant le chargement et même si la lecture
+  /// échoue. Seuls l'âge, l'unité et la couleur d'avatar attendent la réponse.
+  Widget _buildUsagerCard() {
+    final entete = _entete?.valeur;
+    final usager = entete?.usager;
+    final uniteNom = entete?.unite?.nom;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -186,7 +247,9 @@ class CahierDeLiaisonScreen extends StatelessWidget {
         children: [
           CircleAvatar(
             radius: 32,
-            backgroundColor: usager?.avatarColor ?? AppColors.turquoise,
+            // Dérivée de l'id, connu dès l'ouverture : la couleur est donc
+            // correcte immédiatement, sans attendre Firestore ni clignoter.
+            backgroundColor: avatarColorPourUsager(usagerId),
             child: Text(
               _initials(usagerName),
               style: const TextStyle(
@@ -209,21 +272,44 @@ class CahierDeLiaisonScreen extends StatelessWidget {
                     color: AppColors.marine,
                   ),
                 ),
-                if (usager != null) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    '${usager.age} ans${uniteNom != null ? ' · $uniteNom' : ''}',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: AppColors.marine.withValues(alpha: 0.6),
-                    ),
-                  ),
-                ],
+                const SizedBox(height: 2),
+                _buildSousTitre(usager, uniteNom),
               ],
             ),
           ),
         ],
       ),
+    );
+  }
+
+  /// Ligne « âge · unité » sous le nom.
+  ///
+  /// Trois états explicites plutôt qu'une ligne qui apparaît sans prévenir :
+  /// chargement, échec de lecture, puis la valeur. Le reste de l'écran (les
+  /// trois tuiles) n'en dépend pas et reste utilisable dans tous les cas.
+  Widget _buildSousTitre(UsagerAffichage? usager, String? uniteNom) {
+    final style = TextStyle(
+      fontSize: 13,
+      color: AppColors.marine.withValues(alpha: 0.6),
+    );
+
+    if (_chargement) return Text('Chargement…', style: style);
+
+    final resultat = _entete;
+    if (resultat != null && resultat.enEchec) {
+      return Text(
+        resultat.refusDePermission
+            ? 'Fiche non accessible'
+            : 'Fiche indisponible hors connexion',
+        style: style,
+      );
+    }
+
+    if (usager == null) return Text('Fiche introuvable', style: style);
+
+    return Text(
+      '${usager.age} ans${uniteNom != null ? ' · $uniteNom' : ''}',
+      style: style,
     );
   }
 }

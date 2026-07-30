@@ -27,13 +27,12 @@ class Evenement {
   final String? etablissementId;
   final String? auteurId;
 
-  /// Ids stables (`mockUsagersCatalogue`) des usagers concernés (portée
-  /// individuelle). Vide si non résolvable (nom absent du catalogue, ou
-  /// homonyme ambigu — voir le cas evt1, "test data à nettoyer" ci-dessus).
+  /// Ids stables des usagers concernés (portée individuelle), dans la
+  /// collection Firestore `usagers`.
   final List<String> usagersConcernesIds;
 
-  /// Id stable (`mockUnitesCatalogue`) de l'unité concernée (portée
-  /// groupe).
+  /// Id stable de l'unité concernée (portée groupe), dans la collection
+  /// Firestore `unites`.
   final String? uniteConcerneeId;
 
   final DateTime createdAt;

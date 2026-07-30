@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/etablissement.dart';
 import '../models/unite.dart';
 import '../models/usager.dart';
+import '../models/usager_affichage.dart';
 
 /// Lecture du référentiel (`etablissements`, `unites`, `usagers`) depuis
 /// Firestore. Chantier Référentiel / R2.
@@ -125,6 +126,38 @@ class ReferentielService {
     final doc = await _usagers.doc(usagerId).get();
     if (!doc.exists) return null;
     return Usager.fromFirestore(doc);
+  }
+
+  // -------------------------------------------------------------------------
+  // Vues d'affichage (chantier Référentiel / R3a)
+  //
+  // Les écrans consomment ces méthodes-ci, jamais celles qui retournent un
+  // `Usager` brut : un écran ne doit pas avoir à savoir que le consentement
+  // image vient encore du mock ni comment la couleur d'avatar est dérivée.
+  // Toute cette composition vit dans `UsagerAffichage` — un seul endroit à
+  // reprendre en R3b.
+  // -------------------------------------------------------------------------
+
+  /// Les usagers d'une unité, prêts à afficher.
+  Future<List<UsagerAffichage>> getUsagersAffichageParUnite(String uniteId) async =>
+      (await getUsagersParUnite(uniteId)).map(UsagerAffichage.composer).toList();
+
+  /// Les usagers des unités du pro, prêts à afficher.
+  Future<List<UsagerAffichage>> getUsagersAffichagePourPro(
+    List<String> unitesAcces,
+  ) async =>
+      (await getUsagersPourPro(unitesAcces)).map(UsagerAffichage.composer).toList();
+
+  /// Les usagers rattachés à un compte famille, prêts à afficher.
+  Future<List<UsagerAffichage>> getUsagersAffichagePourFamille(
+    List<String> usagersIds,
+  ) async =>
+      (await getUsagersPourFamille(usagersIds)).map(UsagerAffichage.composer).toList();
+
+  /// Un usager précis, prêt à afficher. `null` s'il n'existe pas.
+  Future<UsagerAffichage?> getUsagerAffichage(String usagerId) async {
+    final usager = await getUsager(usagerId);
+    return usager == null ? null : UsagerAffichage.composer(usager);
   }
 
   /// Écarte les usagers inactifs et trie par nom puis prénom.
