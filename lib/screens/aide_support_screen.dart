@@ -16,7 +16,7 @@ const _faqs = [
     question: 'Qui peut voir mes publications ?',
     reponse:
         'Une publication individuelle est visible par la famille concernée et les professionnels '
-        "autorisés. Une publication de groupe est visible par les familles et professionnels de "
+        "autorisés. Une publication d'unité est visible par les familles et professionnels de "
         "l'unité concernée. Une publication d'établissement est visible par tous.",
   ),
   _Faq(

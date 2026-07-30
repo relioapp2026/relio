@@ -9,6 +9,7 @@ import '../theme/app_colors.dart';
 import '../utils/chargement_referentiel.dart';
 import '../utils/fade_route.dart';
 import '../widgets/auth_background.dart';
+import '../widgets/chargement_perimetre_pro.dart';
 import '../widgets/etat_referentiel.dart';
 import '../widgets/feed_bottom_nav.dart';
 import '../widgets/feed_header.dart';
@@ -44,22 +45,11 @@ class ProfilScreen extends StatefulWidget {
   State<ProfilScreen> createState() => _ProfilScreenState();
 }
 
-/// Les unités du pro connecté et leurs usagers, pour la section « Mes unités ».
-class _MesUnites {
-  const _MesUnites({required this.unites, required this.usagers});
-
-  final List<Unite> unites;
-  final List<UsagerAffichage> usagers;
-
-  List<UsagerAffichage> usagersDe(Unite unite) =>
-      usagers.where((u) => u.uniteId == unite.id).toList();
-}
-
 class _ProfilScreenState extends State<ProfilScreen> {
   final _service = ReferentielService();
 
   bool _chargement = false;
-  ChargementReferentiel<_MesUnites>? _mesUnites;
+  ChargementReferentiel<PerimetrePro>? _mesUnites;
 
   bool get isPro => widget.isPro;
 
@@ -74,15 +64,15 @@ class _ProfilScreenState extends State<ProfilScreen> {
   Future<void> _chargerMesUnites() async {
     setState(() => _chargement = true);
 
-    final resultat = await chargerReferentiel<_MesUnites>(() async {
+    final resultat = await chargerReferentiel<PerimetrePro>(() async {
       final unitesAcces = AuthService.currentProUser?.unitesAcces ?? const <String>[];
       if (unitesAcces.isEmpty) {
-        return const _MesUnites(unites: [], usagers: []);
+        return const PerimetrePro(unites: [], usagers: []);
       }
       // Deux lectures groupées pour toute la section, jamais une par unité.
       final unites = await _service.getUnites(unitesAcces);
       final usagers = await _service.getUsagersAffichagePourPro(unitesAcces);
-      return _MesUnites(unites: unites, usagers: usagers);
+      return PerimetrePro(unites: unites, usagers: usagers);
     });
 
     if (!mounted) return;

@@ -54,7 +54,21 @@ class UsagerAffichage {
   String get id => _usager.id;
   String get prenom => _usager.prenom;
   String get nom => _usager.nom;
+  /// « Prénom Nom » — pour les **titres** et en-têtes qui parlent d'un enfant
+  /// en particulier (Journal de vie, Cahier de liaison, Agenda).
   String get nomComplet => _usager.nomComplet;
+
+  /// « Nom Prénom » — pour les **listes triées** uniquement.
+  ///
+  /// Les listes d'usagers sont triées par nom de famille (voir
+  /// `ReferentielService._trierEtFiltrer`). Les afficher en « Prénom Nom »
+  /// donnait une liste qui paraissait désordonnée : l'œil lit « Nolan, Adam,
+  /// Alice » là où le tri porte sur « Barbier, Blanchard, Bonnet ». Faire
+  /// commencer la ligne par la clé de tri rend l'ordre évident.
+  ///
+  /// **Ne pas utiliser pour un titre de page** : « Dubois Lucas » se lit comme
+  /// une fiche administrative, pas comme le nom d'un enfant.
+  String get nomListe => '$nom $prenom';
   String get uniteId => _usager.uniteId;
   String get etablissementId => _usager.etablissementId;
   int get anneeNaissance => _usager.anneeNaissance;

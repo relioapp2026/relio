@@ -178,6 +178,13 @@ class _EnvoyerDocumentScreenState extends State<EnvoyerDocumentScreen> {
                             unites: perimetre.unites,
                             onChanged: (value) => setState(() => _visibilite = value),
                             restrictionEtablissementActive: true,
+                            // Un document accepte les images (PNG/JPEG/HEIC),
+                            // pas seulement les PDF : joindre la photo d'un
+                            // enfant est donc possible ici, et l'absence
+                            // d'autorisation doit se voir. L'écran d'envoi de
+                            // message, lui, n'a aucune pièce jointe — le badge
+                            // n'y aurait rien à signaler.
+                            showConsentBadge: true,
                             messageAucunUsager:
                                 'Aucun usager avec une famille rattachée dans vos unités.',
                           ),

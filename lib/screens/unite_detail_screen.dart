@@ -4,6 +4,7 @@ import '../models/unite.dart';
 import '../models/usager_affichage.dart';
 import '../theme/app_colors.dart';
 import '../widgets/auth_background.dart';
+import '../widgets/consent_image_etat.dart';
 import '../widgets/etat_referentiel.dart';
 import '../widgets/simple_turquoise_header.dart';
 
@@ -101,9 +102,18 @@ class UniteDetailScreen extends StatelessWidget {
           ),
           const SizedBox(width: 14),
           Expanded(
-            child: Text(
-              usager.nomComplet,
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.marine),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  // Liste triée par nom : la ligne commence par la clé de tri.
+                  usager.nomListe,
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.marine),
+                ),
+                const SizedBox(height: 4),
+                // Densité compacte : une unité peut compter 27 usagers.
+                ConsentImageEtat.compact(consent: usager.consentImage),
+              ],
             ),
           ),
           Text(

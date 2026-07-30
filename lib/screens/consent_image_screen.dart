@@ -135,7 +135,14 @@ class _ConsentImageScreenState extends State<ConsentImageScreen> {
                       ),
                       const SizedBox(height: 12),
                       ConsentToggleCard(
-                        titre: 'Publications de groupe',
+                        // « Unité » et non « groupe » : c'est le mot employé
+                        // partout ailleurs dans l'app (chips de sélection,
+                        // agenda, messages) et celui de l'établissement. Le
+                        // champ Firestore reste `groupe` — voir CLAUDE.md.
+                        // La description, elle, est inchangée : elle disait
+                        // déjà « activité de son unité », donc la portée du
+                        // consentement recueilli ne bouge pas.
+                        titre: 'Publications d\'unité',
                         description:
                             'Photo de $prenom visible par les familles des enfants '
                             'présents lors d\'une activité de son unité.',

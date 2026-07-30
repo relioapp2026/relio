@@ -40,7 +40,7 @@ class NouvelleCommunicationScreen extends StatelessWidget {
                       icon: Icons.chat_bubble_outline,
                       color: AppColors.roseViolet,
                       title: 'Envoyer un message',
-                      subtitle: "Un message texte à une famille, un groupe ou tout l'établissement",
+                      subtitle: "Un message texte à une famille, une unité ou tout l'établissement",
                       onTap: () => Navigator.of(context).push(
                         fadeRoute(const EnvoyerMessageScreen()),
                       ),

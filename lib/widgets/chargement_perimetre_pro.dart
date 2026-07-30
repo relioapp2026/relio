@@ -11,8 +11,15 @@ import 'etat_referentiel.dart' show ReferentielEnChargement, ReferentielEnErreur
 class PerimetrePro {
   const PerimetrePro({required this.unites, required this.usagers});
 
+  /// Triées par `ordre` (voir `ReferentielService.getUnites`).
   final List<Unite> unites;
+
+  /// Triés par nom puis prénom, toutes unités confondues.
   final List<UsagerAffichage> usagers;
+
+  /// Les usagers d'une unité, dans l'ordre de tri général.
+  List<UsagerAffichage> usagersDe(Unite unite) =>
+      usagers.where((u) => u.uniteId == unite.id).toList();
 }
 
 /// Charge le périmètre du pro connecté, puis construit [builder] avec.

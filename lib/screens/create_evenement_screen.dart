@@ -205,23 +205,30 @@ class _CreateEvenementScreenState extends State<CreateEvenementScreen> {
                           decoration: _fieldDecoration("Décrivez l'événement..."),
                         ),
                         const SizedBox(height: 20),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
+                        // Material et non Container : un SwitchListTile peint
+                        // ses ondes de contact sur le Material le plus proche.
+                        // Un conteneur décoré intercalé les masque (assertion
+                        // Flutter en mode debug).
+                        Material(
+                          color: Colors.white,
+                          shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: AppColors.turquoise.withValues(alpha: 0.4)),
+                            side: BorderSide(color: AppColors.turquoise.withValues(alpha: 0.4)),
                           ),
-                          child: SwitchListTile(
-                            value: _touteLaJournee,
-                            onChanged: (value) => setState(() => _touteLaJournee = value),
-                            activeThumbColor: AppColors.turquoise,
-                            contentPadding: EdgeInsets.zero,
-                            title: Text(
-                              'Toute la journée',
-                              style: TextStyle(
-                                color: AppColors.marine,
-                                fontWeight: FontWeight.w600,
+                          clipBehavior: Clip.antiAlias,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                            child: SwitchListTile(
+                              value: _touteLaJournee,
+                              onChanged: (value) => setState(() => _touteLaJournee = value),
+                              activeThumbColor: AppColors.turquoise,
+                              contentPadding: EdgeInsets.zero,
+                              title: Text(
+                                'Toute la journée',
+                                style: TextStyle(
+                                  color: AppColors.marine,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ),
                           ),

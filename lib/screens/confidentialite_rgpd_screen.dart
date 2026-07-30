@@ -186,7 +186,10 @@ class _ConfidentialiteRGPDScreenState extends State<ConfidentialiteRGPDScreen> {
                       ),
                       const SizedBox(height: 12),
                       ConsentToggleCard(
-                        titre: 'Publications de groupe',
+                        // Même libellé que ConsentImageScreen — ces deux écrans
+                        // recueillent le même consentement et doivent dire
+                        // exactement la même chose.
+                        titre: 'Publications d\'unité',
                         description:
                             'Photo de $_prenom visible par les familles des enfants '
                             'présents lors d\'une activité de son unité.',

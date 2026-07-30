@@ -229,7 +229,10 @@ class _VisibiliteSelectorState extends State<VisibiliteSelector> {
     final selection = _selectedUsager;
     if (selection != null) {
       return _SelectedUsagerChip(
-        name: selection.nomComplet,
+        // Même forme que dans la liste d'où il vient : basculer sur
+        // « Prénom Nom » à la sélection ferait douter d'avoir choisi
+        // la bonne personne.
+        name: selection.nomListe,
         sansConsentement: widget.showConsentBadge &&
             selection.sansAutorisationImage(VisibiliteType.individuelle),
         onClear: () => setState(() {
@@ -254,10 +257,14 @@ class _VisibiliteSelectorState extends State<VisibiliteSelector> {
     }
 
     final query = _usagerSearchController.text.trim().toLowerCase();
+    // La recherche accepte les deux formes : on tape aussi bien « lucas » que
+    // « dubois », que la liste affiche « Dubois Lucas ».
     final matches = query.isEmpty
         ? const <UsagerAffichage>[]
         : widget.usagers
-            .where((u) => u.nomComplet.toLowerCase().contains(query))
+            .where((u) =>
+                u.nomListe.toLowerCase().contains(query) ||
+                u.nomComplet.toLowerCase().contains(query))
             .toList();
 
     return Column(
@@ -272,28 +279,37 @@ class _VisibiliteSelectorState extends State<VisibiliteSelector> {
           onChanged: (_) => setState(() {}),
         ),
         if (matches.isNotEmpty)
-          Container(
-            margin: const EdgeInsets.only(top: 8),
-            decoration: BoxDecoration(
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            // `Material` et non `Container` : un ListTile peint son fond et
+            // ses ondes de contact sur le Material le plus proche. Enfermé
+            // dans un conteneur décoré, il les peint *derrière* ce fond —
+            // le tap n'a plus de retour visuel, et Flutter lève une
+            // assertion en mode debug. Le Material porte donc lui-même la
+            // couleur, la bordure et le rognage.
+            child: Material(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: AppColors.turquoise.withValues(alpha: 0.4)),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: matches.map((usager) {
-                final sansConsentement = widget.showConsentBadge &&
-                    usager.sansAutorisationImage(VisibiliteType.individuelle);
-                return ListTile(
-                  title: Text(usager.nomComplet, style: TextStyle(color: AppColors.marine)),
-                  trailing: sansConsentement ? const ConsentImageBadge() : null,
-                  onTap: () => setState(() {
-                    _selectedUsager = usager;
-                    _usagerSearchController.clear();
-                    _notify();
-                  }),
-                );
-              }).toList(),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+                side: BorderSide(color: AppColors.turquoise.withValues(alpha: 0.4)),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: matches.map((usager) {
+                  final sansConsentement = widget.showConsentBadge &&
+                      usager.sansAutorisationImage(VisibiliteType.individuelle);
+                  return ListTile(
+                    title: Text(usager.nomListe, style: TextStyle(color: AppColors.marine)),
+                    trailing: sansConsentement ? const ConsentImageBadge() : null,
+                    onTap: () => setState(() {
+                      _selectedUsager = usager;
+                      _usagerSearchController.clear();
+                      _notify();
+                    }),
+                  );
+                }).toList(),
+              ),
             ),
           ),
       ],
@@ -338,12 +354,16 @@ class _VisibiliteSelectorState extends State<VisibiliteSelector> {
             style: TextStyle(fontSize: 12, color: AppColors.marine.withValues(alpha: 0.5)),
           )
         else ...[
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
+          // Material et non Container — voir la note sur la liste de
+          // recherche ci-dessus : un CheckboxListTile peint lui aussi ses
+          // ondes de contact sur le Material le plus proche.
+          Material(
+            color: Colors.white,
+            shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: AppColors.turquoise.withValues(alpha: 0.4)),
+              side: BorderSide(color: AppColors.turquoise.withValues(alpha: 0.4)),
             ),
+            clipBehavior: Clip.antiAlias,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: usagersUnite.map((usager) {
@@ -355,7 +375,7 @@ class _VisibiliteSelectorState extends State<VisibiliteSelector> {
                     _groupePresence[usager.id] = value ?? false;
                     _notify();
                   }),
-                  title: Text(usager.nomComplet, style: TextStyle(color: AppColors.marine)),
+                  title: Text(usager.nomListe, style: TextStyle(color: AppColors.marine)),
                   subtitle: sansConsentement
                       ? const Align(alignment: Alignment.centerLeft, child: ConsentImageBadge())
                       : null,

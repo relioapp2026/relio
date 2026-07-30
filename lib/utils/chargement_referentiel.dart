@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../services/referentiel_service.dart';
@@ -20,12 +22,14 @@ class ChargementReferentiel<T> {
   const ChargementReferentiel.succes(this.valeur)
       : erreur = null,
         codeErreur = null,
-        refusDePermission = false;
+        refusDePermission = false,
+        delaiDepasse = false;
 
   const ChargementReferentiel.echec(
     this.erreur, {
     required this.refusDePermission,
     this.codeErreur,
+    this.delaiDepasse = false,
   }) : valeur = null;
 
   final T? valeur;
@@ -42,6 +46,9 @@ class ChargementReferentiel<T> {
   /// panne réseau, un document malformé ou un bug.
   final bool refusDePermission;
 
+  /// Vrai si la lecture n'a pas abouti dans [delaiMaxLecture].
+  final bool delaiDepasse;
+
   bool get enEchec => erreur != null;
 
   /// Message en français destiné à l'écran.
@@ -54,20 +61,45 @@ class ChargementReferentiel<T> {
     if (refusDePermission) {
       return "Vos droits d'accès ne permettent pas d'afficher ces informations.";
     }
+    if (delaiDepasse) {
+      return 'Pas de connexion. Vérifiez votre réseau, puis réessayez.';
+    }
     return 'Impossible de charger les informations. Vérifiez votre connexion, '
         'puis réessayez.';
   }
 }
+
+/// Au-delà de ce délai, une lecture est considérée comme échouée.
+///
+/// **Firestore n'expire jamais de lui-même.** Hors connexion, `get()` met
+/// l'opération en file d'attente et attend le retour du réseau — sans limite.
+/// Sans ce garde-fou, un écran affiche donc un indicateur de chargement qui
+/// tourne indéfiniment : ni erreur, ni bouton « Réessayer », ni moyen pour
+/// l'utilisateur de comprendre ce qui se passe. Constaté sur Pixel 9a en mode
+/// avion.
+///
+/// 10 secondes : assez long pour un réseau lent dans un bâtiment d'IME, assez
+/// court pour ne pas passer pour un blocage. Le cache hors ligne de Firestore
+/// répond bien avant ce délai quand il a la donnée, donc ce plafond ne pénalise
+/// pas le cas « hors connexion mais déjà consulté ».
+const delaiMaxLecture = Duration(seconds: 10);
 
 /// Exécute [action] en classant l'échec éventuel, sans jamais le propager.
 ///
 /// Un écran qui appelle cette fonction ne peut pas planter sur une lecture
 /// Firestore : il obtient toujours un [ChargementReferentiel] exploitable.
 Future<ChargementReferentiel<T>> chargerReferentiel<T>(
-  Future<T> Function() action,
-) async {
+  Future<T> Function() action, {
+  Duration delaiMax = delaiMaxLecture,
+}) async {
   try {
-    return ChargementReferentiel.succes(await action());
+    return ChargementReferentiel.succes(await action().timeout(delaiMax));
+  } on TimeoutException catch (e) {
+    return ChargementReferentiel.echec(
+      e.toString(),
+      refusDePermission: false,
+      delaiDepasse: true,
+    );
   } catch (e) {
     return ChargementReferentiel.echec(
       e.toString(),

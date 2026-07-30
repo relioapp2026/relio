@@ -9,6 +9,7 @@ import '../utils/avatar_color.dart';
 import '../utils/chargement_referentiel.dart';
 import '../utils/fade_route.dart';
 import '../widgets/auth_background.dart';
+import '../widgets/consent_image_etat.dart';
 import '../widgets/count_badge.dart';
 import '../widgets/feed_bottom_nav.dart';
 import '../widgets/simple_turquoise_header.dart';
@@ -274,6 +275,17 @@ class _CahierDeLiaisonScreenState extends State<CahierDeLiaisonScreen> {
                 ),
                 const SizedBox(height: 2),
                 _buildSousTitre(usager, uniteNom),
+                // Réservé au pro : c'est lui qui doit savoir ce qu'il a le
+                // droit de diffuser avant de publier. La famille, elle, gère
+                // ses propres autorisations depuis Profil > Paramètres >
+                // Confidentialité — les répéter ici, dans un en-tête où elles
+                // ne sont pas modifiables, prêterait à confusion.
+                if (isPro && usager != null) ...[
+                  const SizedBox(height: 6),
+                  // Densité détaillée : l'en-tête a la place, et c'est l'écran
+                  // où le pro consulte la situation d'un enfant en particulier.
+                  ConsentImageEtat.detaille(consent: usager.consentImage),
+                ],
               ],
             ),
           ),

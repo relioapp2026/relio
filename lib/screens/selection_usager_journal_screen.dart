@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 
+import '../models/unite.dart';
 import '../models/usager_affichage.dart';
 import '../models/visibilite_type.dart';
-import '../services/auth_service.dart';
-import '../services/referentiel_service.dart';
 import '../theme/app_colors.dart';
-import '../utils/chargement_referentiel.dart';
 import '../utils/fade_route.dart';
 import '../widgets/auth_background.dart';
+import '../widgets/chargement_perimetre_pro.dart';
 import '../widgets/consent_image_badge.dart';
 import '../widgets/etat_referentiel.dart';
 import '../widgets/simple_turquoise_header.dart';
@@ -25,9 +24,13 @@ enum SelectionUsagerDestination { journalDeVie, cahierDeLiaison }
 /// dont une entrée de test sans id (« Léo Martin ») et un compteur de
 /// souvenirs factice : le premier ne pouvait mener nulle part, le second
 /// n'avait aucune contrepartie en base. Le compteur réel réapparaîtra à
-/// l'étape 5 du chantier Publications, quand le Journal de vie sera alimenté
-/// par de vraies publications.
-class SelectionUsagerJournalScreen extends StatefulWidget {
+/// l'étape 5 du chantier Publications.
+///
+/// **Groupée par unité**, dans l'ordre des unités (`Unite.ordre`), comme
+/// Profil > Mes unités : une liste plate de 55 entrées toutes unités
+/// confondues n'était pas navigable, et les deux écrans présentaient la même
+/// donnée de deux façons différentes.
+class SelectionUsagerJournalScreen extends StatelessWidget {
   const SelectionUsagerJournalScreen({
     super.key,
     this.destination = SelectionUsagerDestination.journalDeVie,
@@ -35,46 +38,12 @@ class SelectionUsagerJournalScreen extends StatefulWidget {
 
   final SelectionUsagerDestination destination;
 
-  @override
-  State<SelectionUsagerJournalScreen> createState() =>
-      _SelectionUsagerJournalScreenState();
-}
-
-class _SelectionUsagerJournalScreenState extends State<SelectionUsagerJournalScreen> {
-  final _service = ReferentielService();
-
-  bool _chargement = true;
-  ChargementReferentiel<List<UsagerAffichage>>? _resultat;
-
-  @override
-  void initState() {
-    super.initState();
-    _charger();
-  }
-
-  Future<void> _charger() async {
-    setState(() => _chargement = true);
-
-    final resultat = await chargerReferentiel<List<UsagerAffichage>>(() async {
-      final unitesAcces = AuthService.currentProUser?.unitesAcces ?? const <String>[];
-      if (unitesAcces.isEmpty) return const <UsagerAffichage>[];
-      // Une seule requête groupée, bornée aux unités du pro — jamais un appel
-      // par usager, qui multiplierait les lectures facturées.
-      return _service.getUsagersAffichagePourPro(unitesAcces);
-    });
-
-    if (!mounted) return;
-    setState(() {
-      _resultat = resultat;
-      _chargement = false;
-    });
-  }
-
-  void _ouvrir(UsagerAffichage usager) {
+  void _ouvrir(BuildContext context, UsagerAffichage usager) {
     Navigator.of(context).push(
       fadeRoute(
-        widget.destination == SelectionUsagerDestination.journalDeVie
+        destination == SelectionUsagerDestination.journalDeVie
             ? JournalDeVieScreen(
+                // Titre de page : « Prénom Nom », pas la forme de liste.
                 usagerName: usager.nomComplet,
                 usagerId: usager.id,
                 usagerAge: usager.age,
@@ -98,7 +67,18 @@ class _SelectionUsagerJournalScreenState extends State<SelectionUsagerJournalScr
           children: [
             const SimpleTurquoiseHeader(title: 'Sélectionner un usager'),
             Expanded(
-              child: AuthBackground(child: _buildContenu()),
+              child: AuthBackground(
+                child: ChargementPerimetrePro(
+                  builder: (context, perimetre) {
+                    if (perimetre.usagers.isEmpty) {
+                      return const ReferentielVide(
+                        message: 'Aucun usager accessible avec votre compte.',
+                      );
+                    }
+                    return _buildListe(context, perimetre);
+                  },
+                ),
+              ),
             ),
           ],
         ),
@@ -106,40 +86,45 @@ class _SelectionUsagerJournalScreenState extends State<SelectionUsagerJournalScr
     );
   }
 
-  Widget _buildContenu() {
-    if (_chargement) return const ReferentielEnChargement();
-
-    final resultat = _resultat!;
-    if (resultat.enEchec) {
-      return ReferentielEnErreur(resultat: resultat, onReessayer: _charger);
-    }
-
-    final usagers = resultat.valeur!;
-    if (usagers.isEmpty) {
-      return const ReferentielVide(
-        message: 'Aucun usager accessible avec votre compte.',
-      );
-    }
-
-    return ListView.separated(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      itemCount: usagers.length,
-      separatorBuilder: (_, _) => Divider(
-        height: 1,
-        indent: 72,
-        color: AppColors.marine.withValues(alpha: 0.08),
-      ),
-      itemBuilder: (context, index) => _buildLigne(usagers[index]),
+  Widget _buildListe(BuildContext context, PerimetrePro perimetre) {
+    return ListView(
+      padding: const EdgeInsets.only(bottom: 16),
+      children: [
+        for (final unite in perimetre.unites)
+          ..._buildSectionUnite(context, unite, perimetre.usagersDe(unite)),
+      ],
     );
   }
 
-  Widget _buildLigne(UsagerAffichage usager) {
+  List<Widget> _buildSectionUnite(
+    BuildContext context,
+    Unite unite,
+    List<UsagerAffichage> usagers,
+  ) {
+    // Une unité sans usager accessible n'affiche pas de section vide.
+    if (usagers.isEmpty) return const [];
+
+    return [
+      _EnteteUnite(nom: unite.nom, effectif: usagers.length),
+      for (var i = 0; i < usagers.length; i++) ...[
+        if (i > 0)
+          Divider(
+            height: 1,
+            indent: 72,
+            color: AppColors.marine.withValues(alpha: 0.08),
+          ),
+        _buildLigne(context, usagers[i]),
+      ],
+    ];
+  }
+
+  Widget _buildLigne(BuildContext context, UsagerAffichage usager) {
     final sansConsentement =
         usager.sansAutorisationImage(VisibiliteType.individuelle) ||
             usager.sansAutorisationImage(VisibiliteType.groupe);
 
     return InkWell(
-      onTap: () => _ouvrir(usager),
+      onTap: () => _ouvrir(context, usager),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         child: Row(
@@ -162,7 +147,8 @@ class _SelectionUsagerJournalScreenState extends State<SelectionUsagerJournalScr
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    usager.nomComplet,
+                    // Forme de liste : la ligne commence par la clé de tri.
+                    usager.nomListe,
                     style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
@@ -182,6 +168,44 @@ class _SelectionUsagerJournalScreenState extends State<SelectionUsagerJournalScr
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Intertitre de section : nom de l'unité + effectif accessible.
+class _EnteteUnite extends StatelessWidget {
+  const _EnteteUnite({required this.nom, required this.effectif});
+
+  final String nom;
+  final int effectif;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
+      child: Row(
+        children: [
+          Text(
+            nom.toUpperCase(),
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.6,
+              color: AppColors.marine.withValues(alpha: 0.55),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            '($effectif)',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: AppColors.marine.withValues(alpha: 0.35),
+            ),
+          ),
+        ],
       ),
     );
   }
