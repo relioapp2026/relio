@@ -1,90 +1,61 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
+import '../models/publication.dart';
 import '../theme/app_colors.dart';
+import 'publication_menu.dart';
 
-class PublicationComment {
-  const PublicationComment({
-    required this.authorName,
-    required this.avatarColor,
-    required this.text,
-  });
-
-  final String authorName;
-  final Color avatarColor;
-  final String text;
-}
-
-/// Carte de publication du feed : avatar + horodatage, photos en carrousel,
-/// likes/commentaires, texte, aperçu des commentaires et accès au détail.
+/// Carte de publication du feed.
+///
+/// **Chantier Publications / étape 1 — texte seul.**
+///
+/// Les likes et les commentaires sont **affichés mais inertes** : compteurs à
+/// zéro, aucun tap, aucune action réseau. Le schéma Firestore ne porte aucun
+/// champ de comptage à cette étape, et simuler un comportement qui n'existe
+/// pas donnerait une fausse idée de ce qui marche. Ils reviennent à l'étape 3,
+/// câblés pour de vrai.
+///
+/// Le bloc photo ne s'affiche que s'il y a des photos — étape 2. Sans ce
+/// garde-fou, chaque publication texte réserverait 200 px de vide.
+///
+/// L'interactivité précédente (like animé, bottom sheet des commentaires,
+/// `_CommentsSheet`) a été retirée ici et sera reconstruite contre Firestore à
+/// l'étape 3. Elle reste consultable dans l'historique Git, commit `9fde98c`.
 class PublicationCard extends StatefulWidget {
   const PublicationCard({
     super.key,
-    required this.authorName,
-    required this.avatarColor,
+    required this.publication,
     required this.timeAgo,
-    required this.photoCount,
-    required this.text,
-    required this.likeCount,
-    required this.comments,
+    this.menu,
+    this.masqueeParVous = false,
   });
 
-  final String authorName;
-  final Color avatarColor;
+  final Publication publication;
   final String timeAgo;
-  final int photoCount;
-  final String text;
-  final int likeCount;
-  final List<PublicationComment> comments;
+
+  /// Menu « ⋮ ». `null` quand le lecteur n'est ni l'auteur ni modérateur —
+  /// l'icône disparaît alors complètement, plutôt que d'être grisée.
+  final Widget? menu;
+
+  /// Change le libellé du bandeau de masquage (« par vous » / « par un
+  /// modérateur »).
+  final bool masqueeParVous;
 
   @override
   State<PublicationCard> createState() => _PublicationCardState();
 }
 
-class _PublicationCardState extends State<PublicationCard>
-    with SingleTickerProviderStateMixin {
+class _PublicationCardState extends State<PublicationCard> {
   final _pageController = PageController();
-  late List<PublicationComment> _comments;
-  late final AnimationController _likeAnimController;
-  late final Animation<double> _likeScale;
   int _currentPage = 0;
   bool _textExpanded = false;
-  bool _liked = false;
 
-  @override
-  void initState() {
-    super.initState();
-    _comments = List.of(widget.comments);
-    _likeAnimController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 260),
-    );
-    _likeScale = TweenSequence<double>([
-      TweenSequenceItem(
-        tween: Tween(begin: 1.0, end: 1.4).chain(CurveTween(curve: Curves.easeOut)),
-        weight: 50,
-      ),
-      TweenSequenceItem(
-        tween: Tween(begin: 1.4, end: 1.0).chain(CurveTween(curve: Curves.easeIn)),
-        weight: 50,
-      ),
-    ]).animate(_likeAnimController);
-  }
+  Publication get _publication => widget.publication;
 
   @override
   void dispose() {
     _pageController.dispose();
-    _likeAnimController.dispose();
     super.dispose();
-  }
-
-  void _toggleLike() {
-    setState(() => _liked = !_liked);
-    _likeAnimController.forward(from: 0);
-    if (_liked) {
-      HapticFeedback.lightImpact();
-    }
   }
 
   String _initials(String name) {
@@ -93,22 +64,9 @@ class _PublicationCardState extends State<PublicationCard>
     return letters.toUpperCase();
   }
 
-  void _openCommentsSheet() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => _CommentsSheet(
-        comments: _comments,
-        onAddComment: (comment) => setState(() => _comments.add(comment)),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    final remainingComments = _comments.length - 2;
-    final likeCount = widget.likeCount + (_liked ? 1 : 0);
+    final photoCount = _publication.photos.length;
 
     return Container(
       decoration: BoxDecoration(
@@ -127,446 +85,200 @@ class _PublicationCardState extends State<PublicationCard>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  radius: 22,
-                  backgroundColor: widget.avatarColor,
-                  child: Text(
-                    _initials(widget.authorName),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    widget.authorName,
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.marine,
-                    ),
-                  ),
-                ),
-                Text(
-                  widget.timeAgo,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppColors.marine.withValues(alpha: 0.5),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Icon(
-                  Icons.more_horiz,
-                  color: AppColors.marine.withValues(alpha: 0.5),
-                ),
-              ],
+          if (_publication.masquee)
+            PublicationMasqueeBandeau(
+              parVous: widget.masqueeParVous,
+              motif: _publication.motifMasquage,
             ),
-          ),
-          SizedBox(
-            height: 200,
-            child: Stack(
-              children: [
-                Positioned.fill(
-                  child: PageView.builder(
-                    controller: _pageController,
-                    itemCount: widget.photoCount,
-                    onPageChanged: (index) => setState(() => _currentPage = index),
-                    itemBuilder: (context, index) {
-                      final palette = [
-                        AppColors.turquoise,
-                        AppColors.marine,
-                        AppColors.roseViolet,
-                      ];
-                      return Container(
-                        color: palette[index % palette.length].withValues(alpha: 0.85),
-                        child: const Center(
-                          child: Icon(
-                            Icons.image_outlined,
-                            size: 48,
-                            color: Colors.white70,
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-                if (widget.photoCount > 1) ...[
-                  Positioned(
-                    top: 12,
-                    right: 12,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.55),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        '${_currentPage + 1}/${widget.photoCount}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    bottom: 10,
-                    left: 0,
-                    right: 0,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: List.generate(widget.photoCount, (index) {
-                        final isActive = index == _currentPage;
-                        return Container(
-                          margin: const EdgeInsets.symmetric(horizontal: 3),
-                          width: isActive ? 8 : 6,
-                          height: isActive ? 8 : 6,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: isActive
-                                ? AppColors.turquoise
-                                : Colors.white.withValues(alpha: 0.7),
-                          ),
-                        );
-                      }),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            child: Row(
-              children: [
-                InkWell(
-                  onTap: _toggleLike,
-                  borderRadius: BorderRadius.circular(24),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-                    child: Row(
-                      children: [
-                        ScaleTransition(
-                          scale: _likeScale,
-                          child: Icon(
-                            _liked ? Icons.favorite : Icons.favorite_border,
-                            color: _liked
-                                ? AppColors.roseViolet
-                                : AppColors.marine.withValues(alpha: 0.6),
-                            size: 22,
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          '$likeCount',
-                          style: TextStyle(
-                            color: AppColors.marine,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                InkWell(
-                  onTap: _openCommentsSheet,
-                  borderRadius: BorderRadius.circular(24),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.mode_comment_outlined,
-                          color: AppColors.marine.withValues(alpha: 0.7),
-                          size: 20,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          '${_comments.length}',
-                          style: TextStyle(
-                            color: AppColors.marine,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: RichText(
-              maxLines: _textExpanded ? null : 3,
-              overflow: _textExpanded ? TextOverflow.visible : TextOverflow.ellipsis,
-              text: TextSpan(
-                style: TextStyle(color: AppColors.marine, fontSize: 14, height: 1.35),
-                children: [
-                  TextSpan(text: widget.text),
-                  if (!_textExpanded)
-                    TextSpan(
-                      text: '  ...voir plus',
-                      style: const TextStyle(
-                        color: AppColors.turquoise,
-                        fontWeight: FontWeight.w700,
-                      ),
-                      recognizer: TapGestureRecognizer()
-                        ..onTap = () => setState(() => _textExpanded = true),
-                    ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          if (_comments.isNotEmpty) ...[
-            const Divider(height: 1),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: _comments.take(2).map((comment) {
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: RichText(
-                      text: TextSpan(
-                        style: TextStyle(color: AppColors.marine, fontSize: 13),
-                        children: [
-                          TextSpan(
-                            text: '${comment.authorName}  ',
-                            style: const TextStyle(fontWeight: FontWeight.w700),
-                          ),
-                          TextSpan(text: comment.text),
-                        ],
-                      ),
-                    ),
-                  );
-                }).toList(),
-              ),
-            ),
-            if (remainingComments > 0)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                child: GestureDetector(
-                  onTap: _openCommentsSheet,
-                  child: Text(
-                    remainingComments == 1
-                        ? "Voir l'autre commentaire"
-                        : 'Voir les $remainingComments autres commentaires',
-                    style: const TextStyle(
-                      color: AppColors.turquoise,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 13,
-                    ),
-                  ),
-                ),
-              )
-            else
-              const SizedBox(height: 16),
-          ] else
-            const SizedBox(height: 4),
+          _buildEntete(),
+          if (photoCount > 0) _buildPhotos(photoCount),
+          _buildCompteursInertes(),
+          _buildTexte(),
+          const SizedBox(height: 16),
         ],
       ),
     );
   }
-}
 
-class _CommentsSheet extends StatefulWidget {
-  const _CommentsSheet({required this.comments, required this.onAddComment});
-
-  final List<PublicationComment> comments;
-  final ValueChanged<PublicationComment> onAddComment;
-
-  @override
-  State<_CommentsSheet> createState() => _CommentsSheetState();
-}
-
-class _CommentsSheetState extends State<_CommentsSheet> {
-  late List<PublicationComment> _comments;
-  final _commentController = TextEditingController();
-
-  @override
-  void initState() {
-    super.initState();
-    _comments = List.of(widget.comments);
-  }
-
-  @override
-  void dispose() {
-    _commentController.dispose();
-    super.dispose();
-  }
-
-  void _submitComment() {
-    final text = _commentController.text.trim();
-    if (text.isEmpty) return;
-
-    final comment = PublicationComment(
-      authorName: 'Vous',
-      avatarColor: AppColors.turquoise,
-      text: text,
-    );
-    setState(() => _comments.add(comment));
-    widget.onAddComment(comment);
-    _commentController.clear();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return DraggableScrollableSheet(
-      initialChildSize: 0.6,
-      minChildSize: 0.3,
-      maxChildSize: 0.9,
-      expand: false,
-      builder: (context, scrollController) {
-        return Padding(
-          padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-          child: Container(
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+  Widget _buildEntete() {
+    return Padding(
+      // Padding droit réduit quand le menu est là : le PopupMenuButton porte
+      // déjà sa propre zone tappable de 48 px, exigée par l'accessibilité.
+      padding: EdgeInsets.fromLTRB(16, 16, widget.menu == null ? 16 : 4, 12),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 22,
+            backgroundColor: _publication.avatarColor,
+            child: Text(
+              _initials(_publication.auteurNom),
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+              ),
             ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const SizedBox(height: 10),
-                Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: AppColors.marine.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(2),
+                Text(
+                  _publication.auteurNom,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.marine,
                   ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  child: Text(
-                    'Commentaires',
+                if (_publication.modifiee)
+                  Text(
+                    'Modifiée',
                     style: TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 16,
-                      color: AppColors.marine,
+                      fontSize: 11,
+                      fontStyle: FontStyle.italic,
+                      color: AppColors.marine.withValues(alpha: 0.5),
                     ),
                   ),
-                ),
-                const Divider(height: 1),
-                Expanded(
-                  child: ListView.separated(
-                    controller: scrollController,
-                    padding: const EdgeInsets.all(16),
-                    itemCount: _comments.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 16),
-                    itemBuilder: (context, index) {
-                      final comment = _comments[index];
-                      return Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          CircleAvatar(
-                            radius: 16,
-                            backgroundColor: comment.avatarColor,
-                            child: Text(
-                              comment.authorName.isNotEmpty ? comment.authorName[0] : '',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: RichText(
-                              text: TextSpan(
-                                style: TextStyle(color: AppColors.marine, fontSize: 13),
-                                children: [
-                                  TextSpan(
-                                    text: '${comment.authorName}  ',
-                                    style: const TextStyle(fontWeight: FontWeight.w700),
-                                  ),
-                                  TextSpan(text: comment.text),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      );
-                    },
-                  ),
-                ),
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    border: Border(
-                      top: BorderSide(color: AppColors.marine.withValues(alpha: 0.1)),
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.marine.withValues(alpha: 0.06),
-                        blurRadius: 8,
-                        offset: const Offset(0, -2),
-                      ),
-                    ],
-                  ),
-                  padding: EdgeInsets.fromLTRB(
-                    16,
-                    14,
-                    12,
-                    14 + MediaQuery.of(context).padding.bottom,
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _commentController,
-                          minLines: 1,
-                          maxLines: 4,
-                          style: const TextStyle(fontSize: 15),
-                          decoration: InputDecoration(
-                            hintText: 'Ajouter un commentaire...',
-                            hintStyle: TextStyle(
-                              color: AppColors.marine.withValues(alpha: 0.4),
-                            ),
-                            filled: true,
-                            fillColor: AppColors.champText,
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 18,
-                              vertical: 14,
-                            ),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(24),
-                              borderSide: BorderSide.none,
-                            ),
-                          ),
-                          onSubmitted: (_) => _submitComment(),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Material(
-                        color: AppColors.turquoise,
-                        shape: const CircleBorder(),
-                        child: InkWell(
-                          onTap: _submitComment,
-                          customBorder: const CircleBorder(),
-                          child: const Padding(
-                            padding: EdgeInsets.all(12),
-                            child: Icon(Icons.send, color: Colors.white, size: 20),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
               ],
             ),
           ),
-        );
-      },
+          Text(
+            widget.timeAgo,
+            style: TextStyle(
+              fontSize: 12,
+              color: AppColors.marine.withValues(alpha: 0.5),
+            ),
+          ),
+          if (widget.menu != null) widget.menu!,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPhotos(int photoCount) {
+    return SizedBox(
+      height: 200,
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: PageView.builder(
+              controller: _pageController,
+              itemCount: photoCount,
+              onPageChanged: (index) => setState(() => _currentPage = index),
+              itemBuilder: (context, index) {
+                final palette = [
+                  AppColors.turquoise,
+                  AppColors.marine,
+                  AppColors.roseViolet,
+                ];
+                return Container(
+                  color: palette[index % palette.length].withValues(alpha: 0.85),
+                  child: const Center(
+                    child: Icon(
+                      Icons.image_outlined,
+                      size: 48,
+                      color: Colors.white70,
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          if (photoCount > 1) ...[
+            Positioned(
+              top: 12,
+              right: 12,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.55),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '${_currentPage + 1}/$photoCount',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              bottom: 10,
+              left: 0,
+              right: 0,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(photoCount, (index) {
+                  final isActive = index == _currentPage;
+                  return Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 3),
+                    width: isActive ? 8 : 6,
+                    height: isActive ? 8 : 6,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: isActive
+                          ? AppColors.turquoise
+                          : Colors.white.withValues(alpha: 0.7),
+                    ),
+                  );
+                }),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// Compteurs affichés, sans aucune interaction — voir la note de classe.
+  ///
+  /// Estompés (`alpha: 0.35`) plutôt que masqués : la maquette validée les
+  /// prévoit, et les faire disparaître pour les faire réapparaître à l'étape 3
+  /// serait plus déroutant que de les montrer inactifs.
+  Widget _buildCompteursInertes() {
+    final couleur = AppColors.marine.withValues(alpha: 0.35);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+      child: Row(
+        children: [
+          Icon(Icons.favorite_border, color: couleur, size: 22),
+          const SizedBox(width: 6),
+          Text('0', style: TextStyle(color: couleur, fontWeight: FontWeight.w600)),
+          const SizedBox(width: 20),
+          Icon(Icons.mode_comment_outlined, color: couleur, size: 20),
+          const SizedBox(width: 6),
+          Text('0', style: TextStyle(color: couleur, fontWeight: FontWeight.w600)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTexte() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: RichText(
+        maxLines: _textExpanded ? null : 3,
+        overflow: _textExpanded ? TextOverflow.visible : TextOverflow.ellipsis,
+        text: TextSpan(
+          style: TextStyle(color: AppColors.marine, fontSize: 14, height: 1.35),
+          children: [
+            TextSpan(text: _publication.texte),
+            if (!_textExpanded)
+              TextSpan(
+                text: '  ...voir plus',
+                style: const TextStyle(
+                  color: AppColors.turquoise,
+                  fontWeight: FontWeight.w700,
+                ),
+                recognizer: TapGestureRecognizer()
+                  ..onTap = () => setState(() => _textExpanded = true),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }

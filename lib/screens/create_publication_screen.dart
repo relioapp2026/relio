@@ -1,29 +1,51 @@
 import 'package:flutter/material.dart';
 
+import '../models/publication.dart';
 import '../models/visibilite_type.dart';
+import '../services/publication_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/auth_background.dart';
 import '../widgets/chargement_perimetre_pro.dart';
-import '../widgets/dashed_border_painter.dart';
 import '../widgets/relio_footer.dart';
 import '../widgets/section_label.dart';
 import '../widgets/simple_turquoise_header.dart';
 import '../widgets/visibilite_selector.dart';
 
-const _maxPhotos = 3;
-
 class CreatePublicationScreen extends StatefulWidget {
-  const CreatePublicationScreen({super.key});
+  const CreatePublicationScreen({super.key, this.publicationAModifier});
+
+  /// Non `null` en mode édition (menu « ⋮ » → *Modifier*).
+  ///
+  /// Seul le texte est modifiable : la portée, l'unité et les usagers
+  /// concernés sont figés à la création — les règles Firestore les rendent
+  /// immuables, et changer la portée d'une publication déjà lue par des
+  /// familles reviendrait à la diffuser rétroactivement à d'autres.
+  final Publication? publicationAModifier;
 
   @override
   State<CreatePublicationScreen> createState() => _CreatePublicationScreenState();
 }
 
 class _CreatePublicationScreenState extends State<CreatePublicationScreen> {
+  final _service = PublicationService();
+
   VisibiliteSelection _visibilite = const VisibiliteSelection(type: VisibiliteType.individuelle);
 
-  final List<Color> _photos = [];
   final _messageController = TextEditingController();
+
+  /// Anti double-clic : sans ça, deux appuis rapides créent deux publications.
+  bool _envoiEnCours = false;
+
+  bool get _modeEdition => widget.publicationAModifier != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final publication = widget.publicationAModifier;
+    if (publication != null) {
+      _messageController.text = publication.texte;
+    }
+  }
 
   @override
   void dispose() {
@@ -31,52 +53,113 @@ class _CreatePublicationScreenState extends State<CreatePublicationScreen> {
     super.dispose();
   }
 
-  void _addMockPhoto() {
-    if (_photos.length >= _maxPhotos) return;
-    const palette = [
-      AppColors.turquoise,
-      AppColors.marine,
-      AppColors.roseViolet,
-    ];
-    setState(() => _photos.add(palette[_photos.length % palette.length]));
-  }
+  /// Valide la saisie, puis écrit réellement dans Firestore.
+  ///
+  /// La validation porte sur les **ids** de [VisibiliteSelection], jamais sur
+  /// les libellés affichés — ce sont eux qui partent en base.
+  Future<void> _handlePublish() async {
+    if (_envoiEnCours) return;
 
-  void _removePhoto(int index) {
-    setState(() => _photos.removeAt(index));
-  }
+    final texte = _messageController.text.trim();
 
-  // Cet écran ne construit pas encore de Publication réelle (câblage prévu au
-  // chantier Publications). La validation porte désormais sur les ids de
-  // VisibiliteSelection — ce sont eux qu'il faudra passer au modèle le jour du
-  // câblage, jamais les libellés affichés.
-  void _handlePublish() {
-    if (_visibilite.type == VisibiliteType.individuelle && _visibilite.usagerConcerneId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Merci de sélectionner un usager')),
-      );
-      return;
+    // En édition, la portée est figée : seules les règles du texte
+    // s'appliquent.
+    if (!_modeEdition) {
+      if (_visibilite.type == VisibiliteType.individuelle && _visibilite.usagerConcerneId == null) {
+        _erreur('Merci de sélectionner un usager');
+        return;
+      }
+      if (_visibilite.type == VisibiliteType.groupe && _visibilite.uniteConcerneeId == null) {
+        _erreur('Merci de sélectionner une unité');
+        return;
+      }
+      if (_visibilite.type == VisibiliteType.groupe && _visibilite.usagersPresentsConcernesIds.isEmpty) {
+        _erreur('Merci de sélectionner au moins un usager présent');
+        return;
+      }
     }
-    if (_visibilite.type == VisibiliteType.groupe && _visibilite.uniteConcerneeId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Merci de sélectionner une unité')),
-      );
-      return;
-    }
-    if (_visibilite.type == VisibiliteType.groupe && _visibilite.usagersPresentsConcernesIds.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Merci de sélectionner au moins un usager présent')),
-      );
-      return;
-    }
-    if (_messageController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Merci de décrire le moment partagé')),
-      );
+    if (texte.isEmpty) {
+      _erreur('Merci de décrire le moment partagé');
       return;
     }
 
+    setState(() => _envoiEnCours = true);
+
+    try {
+      if (_modeEdition) {
+        await _service.modifierTexte(
+          publicationId: widget.publicationAModifier!.id,
+          texte: texte,
+        );
+      } else {
+        await _service.creer(
+          type: _visibilite.type,
+          usagersConcernesIds: _usagersConcernes(),
+          uniteId: _uniteConcernee(),
+          texte: texte,
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _envoiEnCours = false);
+      _erreur(_messageErreur(e));
+      return;
+    }
+
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Publication créée (à brancher sur Firestore)')),
+      SnackBar(
+        content: Text(_modeEdition ? 'Publication modifiée' : 'Publication créée'),
+      ),
+    );
+    Navigator.of(context).pop();
+  }
+
+  /// Les usagers réellement concernés, selon la portée choisie.
+  ///
+  /// Une publication d'établissement n'en cible aucun — c'est ce qui la
+  /// distingue d'une publication de groupe couvrant tout le monde.
+  List<String> _usagersConcernes() {
+    switch (_visibilite.type) {
+      case VisibiliteType.individuelle:
+        final id = _visibilite.usagerConcerneId;
+        return id == null ? const [] : [id];
+      case VisibiliteType.groupe:
+        return _visibilite.usagersPresentsConcernesIds;
+      case VisibiliteType.etablissement:
+        return const [];
+    }
+  }
+
+  /// L'unité est portée par la publication individuelle **comme** par celle de
+  /// groupe : c'est elle qui rend la publication visible aux collègues de
+  /// l'unité, et c'est elle que la règle de création vérifie contre
+  /// `unitesAcces`. Seule la portée établissement n'en a pas.
+  ///
+  /// C'est `VisibiliteSelector` qui la résout dans les deux cas — pour une
+  /// publication individuelle, il la déduit de l'usager choisi.
+  String? _uniteConcernee() =>
+      _visibilite.type == VisibiliteType.etablissement
+          ? null
+          : _visibilite.uniteConcerneeId;
+
+  /// Distingue un refus de règle d'une panne — la conduite à tenir n'est pas
+  /// la même, et « une erreur est survenue » ne dit rien à personne.
+  ///
+  /// Aucun cas « établissement » ici : une publication d'établissement n'est
+  /// soumise à aucune restriction d'auteur dans le fil d'actu (voir CLAUDE.md,
+  /// section « Permission diffusion établissement »). Un refus sur ce type ne
+  /// pourrait venir que d'un défaut, pas d'une permission manquante.
+  String _messageErreur(Object e) {
+    if (!PublicationService.estRefusDePermission(e)) {
+      return "L'envoi a échoué. Vérifiez votre connexion, puis réessayez.";
+    }
+    return "Vous n'êtes pas autorisé à publier sur cette unité.";
+  }
+
+  void _erreur(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
     );
   }
 
@@ -92,7 +175,9 @@ class _CreatePublicationScreenState extends State<CreatePublicationScreen> {
         body: SafeArea(
           child: Column(
             children: [
-              const SimpleTurquoiseHeader(title: 'Nouvelle publication'),
+              SimpleTurquoiseHeader(
+                title: _modeEdition ? 'Modifier la publication' : 'Nouvelle publication',
+              ),
               Expanded(
                 child: AuthBackground(
                   // Le RelioFooter est dans l'AuthBackground, pas au niveau du
@@ -108,39 +193,22 @@ class _CreatePublicationScreenState extends State<CreatePublicationScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              ChargementPerimetrePro(
-                                builder: (context, perimetre) => VisibiliteSelector(
-                                  typeLabel: 'Type de publication',
-                                  usagers: perimetre.usagers,
-                                  unites: perimetre.unites,
-                                  onChanged: (value) => setState(() => _visibilite = value),
-                                  showConsentBadge: true,
+                              // En édition, la portée n'est pas rejouée : elle
+                              // est immuable côté règles. Plutôt qu'un
+                              // sélecteur grisé (qui invite à essayer), une
+                              // phrase qui dit pourquoi.
+                              if (_modeEdition)
+                                _PorteeFigee(publication: widget.publicationAModifier!)
+                              else
+                                ChargementPerimetrePro(
+                                  builder: (context, perimetre) => VisibiliteSelector(
+                                    typeLabel: 'Type de publication',
+                                    usagers: perimetre.usagers,
+                                    unites: perimetre.unites,
+                                    onChanged: (value) => setState(() => _visibilite = value),
+                                    showConsentBadge: true,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(height: 20),
-                              const SectionLabel('Photos'),
-                              const SizedBox(height: 8),
-                              SizedBox(
-                                height: 80,
-                                child: ListView.separated(
-                                  scrollDirection: Axis.horizontal,
-                                  itemCount: 1 + _photos.length,
-                                  separatorBuilder: (_, _) => const SizedBox(width: 10),
-                                  itemBuilder: (context, index) {
-                                    if (index == 0) {
-                                      return _DashedAddTile(
-                                        enabled: _photos.length < _maxPhotos,
-                                        onTap: _addMockPhoto,
-                                      );
-                                    }
-                                    final photoIndex = index - 1;
-                                    return _PhotoTile(
-                                      color: _photos[photoIndex],
-                                      onRemove: () => _removePhoto(photoIndex),
-                                    );
-                                  },
-                                ),
-                              ),
                               const SizedBox(height: 20),
                               const SectionLabel('Message'),
                               const SizedBox(height: 8),
@@ -181,11 +249,23 @@ class _CreatePublicationScreenState extends State<CreatePublicationScreen> {
                               ),
                               const SizedBox(height: 20),
                               ElevatedButton(
-                                onPressed: _handlePublish,
+                                // Désactivé pendant l'envoi : c'est ce qui
+                                // empêche deux appuis rapides de créer deux
+                                // publications.
+                                onPressed: _envoiEnCours ? null : _handlePublish,
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: AppColors.roseViolet,
                                 ),
-                                child: const Text('Publier'),
+                                child: _envoiEnCours
+                                    ? const SizedBox(
+                                        width: 20,
+                                        height: 20,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2.5,
+                                          color: Colors.white,
+                                        ),
+                                      )
+                                    : Text(_modeEdition ? 'Enregistrer' : 'Publier'),
                               ),
                             ],
                           ),
@@ -204,93 +284,66 @@ class _CreatePublicationScreenState extends State<CreatePublicationScreen> {
   }
 }
 
-class _DashedAddTile extends StatelessWidget {
-  const _DashedAddTile({required this.onTap, this.enabled = true});
+/// Rappel de la portée d'une publication en cours d'édition.
+///
+/// La portée, l'unité et les usagers concernés sont **immuables** — les règles
+/// Firestore les protègent par `hasOnly()` sur les clés modifiées. Afficher un
+/// sélecteur grisé inviterait à essayer ; une phrase explique.
+class _PorteeFigee extends StatelessWidget {
+  const _PorteeFigee({required this.publication});
 
-  final VoidCallback onTap;
-  final bool enabled;
+  final Publication publication;
+
+  String get _libellePortee {
+    switch (publication.typePublication) {
+      case VisibiliteType.individuelle:
+        return 'Publication individuelle';
+      // « groupe » en base, « Unité » à l'écran — règle de vocabulaire du
+      // projet, voir CLAUDE.md. Un pro ne pense pas « groupe ».
+      case VisibiliteType.groupe:
+        return "Publication d'unité";
+      case VisibiliteType.etablissement:
+        return "Publication d'établissement";
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: enabled ? onTap : null,
-      child: Opacity(
-        opacity: enabled ? 1 : 0.4,
-        child: CustomPaint(
-          painter: DashedBorderPainter(color: AppColors.turquoise),
-          child: SizedBox(
-            width: 80,
-            height: 80,
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.turquoise.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.turquoise.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.lock_outline, size: 18, color: AppColors.marine.withValues(alpha: 0.6)),
+          const SizedBox(width: 10),
+          Expanded(
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.add, color: AppColors.turquoise),
+                Text(
+                  _libellePortee,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.marine,
+                    fontSize: 14,
+                  ),
+                ),
                 const SizedBox(height: 2),
                 Text(
-                  'Ajouter',
+                  'La portée et les usagers concernés ne peuvent pas être '
+                  'modifiés après publication. Seul le texte est modifiable.',
                   style: TextStyle(
-                    color: AppColors.turquoise,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
+                    fontSize: 12,
+                    color: AppColors.marine.withValues(alpha: 0.65),
+                    height: 1.3,
                   ),
                 ),
               ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _PhotoTile extends StatelessWidget {
-  const _PhotoTile({required this.color, required this.onRemove});
-
-  final Color color;
-  final VoidCallback onRemove;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 80,
-      height: 80,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Container(
-            width: 80,
-            height: 80,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.85),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Center(
-              child: Icon(Icons.image_outlined, color: Colors.white70),
-            ),
-          ),
-          Positioned(
-            top: -12,
-            right: -12,
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: onRemove,
-                customBorder: const CircleBorder(),
-                child: Container(
-                  width: 36,
-                  height: 36,
-                  alignment: Alignment.center,
-                  child: Container(
-                    width: 22,
-                    height: 22,
-                    decoration: const BoxDecoration(
-                      color: AppColors.marine,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.close, color: Colors.white, size: 14),
-                  ),
-                ),
-              ),
             ),
           ),
         ],

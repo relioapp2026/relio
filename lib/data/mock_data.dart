@@ -615,14 +615,20 @@ String resolveAuteurId(String nom) {
 // `likes` n'existait pas avant (seulement un compteur `likeCount`) : la
 // liste ci-dessous est un placeholder qui préserve uniquement le nombre
 // affiché, pas des identités réelles de personnes ayant liké.
+//
+// TEMPORAIRE — chantier Publications / étape 1.
+// Les deux feeds lisent désormais la vraie collection `publications` sur
+// Firestore : cette liste n'alimente plus aucun écran. Elle n'est conservée
+// que pour ses COMMENTAIRES de démonstration, qui serviront de fixtures à
+// l'étape 3 (likes et commentaires). À supprimer avec `PublicationCommentaire`
+// une fois cette étape câblée.
 final mockPublications = [
   Publication(
     id: 'pub1',
     auteurId: resolveAuteurId('Marie Dubois'),
     auteurNom: 'Marie Dubois',
-    avatarColor: AppColors.roseViolet,
-    date: _ilYA(const Duration(hours: 2)),
-    typePublication: 'etablissement',
+    dateCreation: _ilYA(const Duration(hours: 2)),
+    typePublication: VisibiliteType.etablissement,
     etablissementId: mockEtablissementId,
     texte: 'Atelier peinture ce matin ! Les enfants ont laissé libre '
         'cours à leur imagination. De magnifiques créations hautes '
@@ -671,9 +677,8 @@ final mockPublications = [
     id: 'pub2',
     auteurId: resolveAuteurId('Camille Bernard'),
     auteurNom: 'Camille Bernard',
-    avatarColor: AppColors.marine,
-    date: _ilYA(const Duration(hours: 5)),
-    typePublication: 'etablissement',
+    dateCreation: _ilYA(const Duration(hours: 5)),
+    typePublication: VisibiliteType.etablissement,
     etablissementId: mockEtablissementId,
     texte: 'Jardinage au programme cet après-midi ! Plantation de '
         'fleurs et découverte de la nature 🌱🌻',

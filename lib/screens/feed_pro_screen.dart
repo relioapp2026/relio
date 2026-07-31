@@ -7,8 +7,7 @@ import '../utils/fade_route.dart';
 import '../widgets/auth_background.dart';
 import '../widgets/feed_bottom_nav.dart';
 import '../widgets/feed_header.dart';
-import '../widgets/notification_style.dart';
-import '../widgets/publication_card.dart';
+import '../widgets/publications_feed.dart';
 import 'create_publication_screen.dart';
 import 'notifications_pro_screen.dart';
 import 'nouvelle_communication_screen.dart';
@@ -23,10 +22,16 @@ class FeedProScreen extends StatefulWidget {
 }
 
 class _FeedProScreenState extends State<FeedProScreen> {
-  void _handlePublish(BuildContext context) {
-    Navigator.of(context).push(
+  /// Permet de recharger le fil au retour de l'écran de création, sans quoi
+  /// une publication tout juste créée n'apparaîtrait qu'au prochain
+  /// tirer-pour-actualiser.
+  final _feedKey = GlobalKey<PublicationsFeedState>();
+
+  Future<void> _handlePublish(BuildContext context) async {
+    await Navigator.of(context).push(
       fadeRoute(const CreatePublicationScreen()),
     );
+    await _feedKey.currentState?.rafraichir();
   }
 
   void _handleTabTap(BuildContext context, FeedNavTab tab) {
@@ -78,30 +83,7 @@ class _FeedProScreenState extends State<FeedProScreen> {
             ),
             Expanded(
               child: AuthBackground(
-                child: ListView(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-                  children: [
-                    for (var i = 0; i < mockPublications.length; i++) ...[
-                      PublicationCard(
-                        authorName: mockPublications[i].auteurNom,
-                        avatarColor: mockPublications[i].avatarColor,
-                        timeAgo: notificationTimeAgo(mockPublications[i].date),
-                        photoCount: mockPublications[i].photos.length,
-                        likeCount: mockPublications[i].likes.length,
-                        text: mockPublications[i].texte,
-                        comments: mockPublications[i]
-                            .commentaires
-                            .map((c) => PublicationComment(
-                                  authorName: c.auteurNom,
-                                  avatarColor: c.avatarColor,
-                                  text: c.texte,
-                                ))
-                            .toList(),
-                      ),
-                      if (i < mockPublications.length - 1) const SizedBox(height: 16),
-                    ],
-                  ],
-                ),
+                child: PublicationsFeed(key: _feedKey),
               ),
             ),
             FeedBottomNav(

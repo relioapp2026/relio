@@ -12,6 +12,7 @@ class ProUser {
     required this.etablissementId,
     required this.unitesAcces,
     required this.peutDiffuserEtablissement,
+    required this.peutModerer,
     required this.dateCreation,
   });
 
@@ -26,6 +27,18 @@ class ProUser {
   /// — voir CLAUDE.md, section « Permission diffusion établissement ».
   final bool peutDiffuserEtablissement;
 
+  /// Autorise le masquage d'une publication ou d'un commentaire **dont on
+  /// n'est pas l'auteur** — voir CLAUDE.md, section « Architecture des
+  /// données ».
+  ///
+  /// Volontairement un booléen et non un troisième rôle : un rôle `admin`
+  /// obligerait chaque règle, chaque requête et chaque écran à gérer un cas de
+  /// plus, là où un booléen ajoute une clause `OR`.
+  ///
+  /// **Indépendant de [peutDiffuserEtablissement]** — ne jamais coupler les
+  /// deux, ni dans le seed, ni dans les règles.
+  final bool peutModerer;
+
   final DateTime dateCreation;
 
   factory ProUser.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
@@ -38,6 +51,8 @@ class ProUser {
       etablissementId: data['etablissementId'] as String,
       unitesAcces: List<String>.from(data['unitesAcces'] as List),
       peutDiffuserEtablissement: data['peutDiffuserEtablissement'] as bool? ?? false,
+      // Absent vaut `false` : aucune permission n'est jamais présumée.
+      peutModerer: data['peutModerer'] as bool? ?? false,
       dateCreation: (data['dateCreation'] as Timestamp).toDate(),
     );
   }

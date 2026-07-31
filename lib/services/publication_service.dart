@@ -1,0 +1,251 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+import '../models/publication.dart';
+import '../models/visibilite_type.dart';
+import 'auth_service.dart';
+
+/// Une page du feed : les publications lues, et de quoi demander la suivante.
+class PagePublications {
+  const PagePublications({
+    required this.publications,
+    required this.dernierDocument,
+    required this.finAtteinte,
+  });
+
+  final List<Publication> publications;
+
+  /// Curseur à repasser à [PublicationService.chargerPage] pour la page
+  /// suivante. `null` quand il n'y a plus rien à charger.
+  final DocumentSnapshot<Map<String, dynamic>>? dernierDocument;
+
+  /// Vrai quand Firestore a renvoyé moins que [PublicationService.taillePage] :
+  /// il n'y a plus de page après celle-ci.
+  final bool finAtteinte;
+}
+
+/// Lecture et écriture de la collection `publications`.
+///
+/// Chantier Publications / étape 1. **Premier chemin d'écriture client d'une
+/// vraie collection de contenu** du projet : jusqu'ici seules les collections
+/// d'authentification acceptaient une écriture, et le référentiel est en
+/// lecture seule par conception.
+///
+/// ---
+/// ### `Future` paginé, pas de `Stream` — décision d'architecture
+///
+/// Un flux temps réel (`snapshots()`) serait le choix naturel à terme, mais le
+/// combiner avec une pagination par curseur est nettement plus complexe qu'un
+/// seul des deux. Pour un cahier de liaison, qu'une publication mette deux
+/// secondes à apparaître après un tirer-pour-actualiser ne gêne personne.
+///
+/// Le passage au temps réel est reporté à l'étape 3 (likes/commentaires), où
+/// l'instantanéité apporte une vraie valeur — un compteur qui bouge en direct.
+///
+/// **Ce choix engage Messages, Documents et Agenda** : le même pattern sera
+/// réutilisé tel quel pour les trois.
+///
+/// ---
+/// ### Le contresens Firestore à ne pas commettre (rappel de R2)
+///
+/// Pour une requête de liste, les règles sont évaluées **document par document
+/// retourné** — elles ne filtrent pas. Une requête qui ramène ne serait-ce
+/// qu'un document hors périmètre échoue **en entier**.
+///
+/// Chaque lecture ci-dessous borne donc sa requête au périmètre de l'appelant
+/// via `cibles`, exactement comme la règle le vérifiera de son côté. Ne jamais
+/// requêter large en comptant sur les règles pour restreindre.
+class PublicationService {
+  PublicationService({FirebaseFirestore? firestore})
+      : _firestore = firestore ?? FirebaseFirestore.instance;
+
+  final FirebaseFirestore _firestore;
+
+  /// Nombre de publications par page.
+  ///
+  /// 15 : assez pour remplir plusieurs écrans de défilement, assez peu pour
+  /// que la première page s'affiche vite sur un réseau d'établissement.
+  static const int taillePage = 15;
+
+  /// Plafond Firestore sur `array-contains-any`.
+  ///
+  /// Sans conséquence au MVP (3 unités + 1 établissement = 4 valeurs côté pro,
+  /// 2 usagers + 1 côté famille), mais à connaître avant le multi-unité large :
+  /// au-delà, il faudra découper la requête en lots.
+  static const int limiteArrayContainsAny = 30;
+
+  CollectionReference<Map<String, dynamic>> get _publications =>
+      _firestore.collection('publications');
+
+  /// Vrai si [erreur] est un refus de règle Firestore, par opposition à une
+  /// panne réseau ou un bug. Les erreurs ne sont jamais avalées par ce
+  /// service : elles remontent telles quelles, à l'appelant de les classer.
+  static bool estRefusDePermission(Object erreur) =>
+      erreur is FirebaseException && erreur.code == 'permission-denied';
+
+  /// Le périmètre de lecture du compte connecté, tel qu'il alimente
+  /// `array-contains-any` sur `cibles`.
+  ///
+  /// **Doit rester le miroir exact de la fonction `accesLecture()` de
+  /// `firestore.rules`.** Si les deux divergent, la requête ramène un document
+  /// que la règle refuse, et c'est la requête entière qui échoue — pas une
+  /// ligne manquante, un feed vide avec `permission-denied`.
+  ///
+  /// La fusion des unités, des usagers et de l'établissement dans une seule
+  /// liste n'est sûre que parce que les ids sont préfixés par type
+  /// (`unite_`, `usager_`, `etab_`) et globalement uniques — décision
+  /// verrouillée, voir CLAUDE.md, section « Architecture des données ».
+  ///
+  /// **Invariant dont dépend l'ordre des tests ci-dessous** : au plus un des
+  /// deux champs d'identité est renseigné à un instant donné.
+  /// `AuthService.signIn` les vide tous les deux avant d'en poser un, et
+  /// `AuthService.signOut` les vide tous les deux. Sans cet invariant, une
+  /// session famille ouverte après une session pro renverrait le périmètre du
+  /// pro : la requête ramènerait des documents que la règle refuse à la
+  /// famille, et **la requête entière échouerait** en `permission-denied` —
+  /// pas une ligne manquante, un feed vide avec un cadenas.
+  static List<String> perimetreLecture() {
+    final pro = AuthService.currentProUser;
+    if (pro != null) {
+      return [...pro.unitesAcces, pro.etablissementId];
+    }
+
+    final famille = AuthService.currentFamilleUser;
+    if (famille != null) {
+      return [...famille.usagersIds, famille.etablissementId];
+    }
+
+    return const [];
+  }
+
+  /// Une page du feed, la plus récente d'abord.
+  ///
+  /// [apres] est le curseur renvoyé par l'appel précédent ; `null` pour la
+  /// première page.
+  ///
+  /// **Nécessite l'index composite** déclaré dans `firestore.indexes.json`
+  /// (`cibles` en tableau + `dateCreation` décroissant). Sans lui, Firestore
+  /// refuse la requête — ce n'est pas une optimisation, c'est une condition.
+  Future<PagePublications> chargerPage({
+    DocumentSnapshot<Map<String, dynamic>>? apres,
+  }) async {
+    final perimetre = perimetreLecture();
+    if (perimetre.isEmpty) {
+      return const PagePublications(
+        publications: [],
+        dernierDocument: null,
+        finAtteinte: true,
+      );
+    }
+
+    var requete = _publications
+        .where(
+          'cibles',
+          arrayContainsAny: perimetre.take(limiteArrayContainsAny).toList(),
+        )
+        .orderBy('dateCreation', descending: true)
+        .limit(taillePage);
+
+    if (apres != null) {
+      requete = requete.startAfterDocument(apres);
+    }
+
+    final snapshot = await requete.get();
+
+    return PagePublications(
+      publications: snapshot.docs.map(Publication.fromFirestore).toList(),
+      dernierDocument: snapshot.docs.isEmpty ? null : snapshot.docs.last,
+      finAtteinte: snapshot.docs.length < taillePage,
+    );
+  }
+
+  /// Crée une publication et retourne son id.
+  ///
+  /// `auteurId` et `auteurNom` viennent du compte connecté, jamais d'un
+  /// paramètre : la règle impose `auteurId == request.auth.uid`, et laisser
+  /// l'appelant les fournir ouvrirait la porte à une publication signée d'un
+  /// collègue.
+  ///
+  /// Lève une [StateError] si aucun pro n'est connecté, et laisse remonter
+  /// [FirebaseException] (`permission-denied` si la règle refuse — unité hors
+  /// `unitesAcces`).
+  ///
+  /// **Une portée établissement n'est jamais refusée pour cause de
+  /// permission** : le fil d'actu est ouvert à tous les pros.
+  /// `peutDiffuserEtablissement` ne concerne que les documents et les
+  /// messages — voir CLAUDE.md, section « Permission diffusion
+  /// établissement ».
+  Future<String> creer({
+    required VisibiliteType type,
+    required List<String> usagersConcernesIds,
+    required String? uniteId,
+    required String texte,
+  }) async {
+    final pro = AuthService.currentProUser;
+    if (pro == null) {
+      throw StateError('Aucun professionnel connecté.');
+    }
+
+    final publication = Publication(
+      id: '',
+      auteurId: pro.uid,
+      auteurNom: '${pro.prenom} ${pro.nom}',
+      typePublication: type,
+      usagersConcernesIds: usagersConcernesIds,
+      uniteId: uniteId,
+      etablissementId: pro.etablissementId,
+      cibles: Publication.calculerCibles(
+        type: type,
+        usagersConcernesIds: usagersConcernesIds,
+        uniteId: uniteId,
+        etablissementId: pro.etablissementId,
+      ),
+      texte: texte,
+      dateCreation: DateTime.now(),
+    );
+
+    final doc = await _publications.add(publication.toFirestoreCreation());
+    return doc.id;
+  }
+
+  /// Modifie le texte d'une publication. **Réservé à l'auteur** — la règle le
+  /// vérifie, ce n'est pas qu'une affaire d'interface.
+  ///
+  /// N'écrit que les trois champs autorisés : la règle impose
+  /// `hasOnly(['texte', 'modifiee', 'dateModification'])`, donc toucher un
+  /// champ de plus ferait échouer l'écriture entière.
+  Future<void> modifierTexte({
+    required String publicationId,
+    required String texte,
+  }) {
+    return _publications.doc(publicationId).update({
+      'texte': texte,
+      'modifiee': true,
+      'dateModification': FieldValue.serverTimestamp(),
+    });
+  }
+
+  /// Masque une publication — **soft delete, jamais un `delete()`**.
+  ///
+  /// Ouvert à l'auteur et aux comptes `peutModerer`. Trace *qui* a masqué et
+  /// pourquoi : l'auteur doit pouvoir constater que sa publication a été
+  /// retirée, et par qui. Une disparition silencieuse serait inacceptable sur
+  /// une plateforme qui diffuse des images d'enfants.
+  ///
+  /// N'écrit que les quatre champs autorisés par la règle.
+  Future<void> masquer({
+    required String publicationId,
+    String? motif,
+  }) {
+    final uid = AuthService.currentProUser?.uid;
+    if (uid == null) {
+      throw StateError('Aucun professionnel connecté.');
+    }
+
+    return _publications.doc(publicationId).update({
+      'masquee': true,
+      'dateMasquage': FieldValue.serverTimestamp(),
+      'masqueePar': uid,
+      'motifMasquage': motif,
+    });
+  }
+}

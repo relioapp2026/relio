@@ -1,0 +1,13 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "publications",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "cibles", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "dateCreation", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

@@ -107,5 +107,125 @@ service cloud.firestore {
         );
       allow write: if false;
     }
+
+    // ---------------------------------------------------------------------
+    // publications (chantier Publications / étape 1)
+    //
+    // Première collection de CONTENU ouverte en écriture au client. Tout ce
+    // qui suit sera réutilisé tel quel par messages, documents et agenda —
+    // une erreur ici se retrouve multipliée par quatre.
+    // ---------------------------------------------------------------------
+
+    // Périmètre de lecture du demandeur, en UNE seule liste.
+    //
+    // Le `let` n'est pas cosmétique : sans lui, `userDoc()` serait appelé
+    // trois fois. Firestore plafonne les get() à 10 par lecture de document
+    // et 20 par requête ; la documentation annonce une mutualisation des
+    // get() identiques, mais CLAUDE.md a précisément inscrit ce point comme
+    // « à mesurer, pas à supposer » — et il ne l'a jamais été. Si la
+    // mutualisation n'avait pas lieu, une page de 15 publications coûterait
+    // 45 get() et la requête entière échouerait. Le `let` supprime la
+    // question au lieu d'en dépendre : un get(), garanti par construction.
+    //
+    // Un pro a `unitesAcces` et pas `usagersIds` ; une famille l'inverse.
+    // D'où `.get(champ, défaut)` partout : un champ absent produit une
+    // ERREUR d'évaluation, pas `null` (leçon de R2).
+    //
+    // La fusion des trois listes n'est sûre que parce que les ids sont
+    // préfixés par type (`unite_`, `usager_`, `etab_`) et globalement
+    // uniques — un id d'usager ne peut pas entrer en collision avec un id
+    // d'unité. Décision VERROUILLÉE, voir CLAUDE.md, section « Architecture
+    // des données ». Un id non préfixé introduit plus tard ferait fuir cette
+    // règle sans qu'aucun test ne le signale.
+    function accesLecture() {
+      let u = userDoc();
+      return u.get('unitesAcces', [])
+              .concat(u.get('usagersIds', []))
+              .concat([u.get('etablissementId', '')]);
+    }
+
+    // Champs qu'aucune mise à jour ne doit jamais pouvoir toucher. Ils
+    // déterminent l'auteur et la visibilité : les rendre modifiables
+    // permettrait de réattribuer une publication ou d'en élargir la portée
+    // après coup.
+    function champsModifiablesSeulement(champs) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(champs);
+    }
+
+    match /publications/{publicationId} {
+      // Lecture bornée au périmètre du demandeur via `cibles`.
+      //
+      // Cette règle ne filtre PAS `masquee` : une publication masquée reste
+      // lisible par les comptes de son périmètre. C'est la couche
+      // d'affichage qui décide qui la voit. Une règle qui la masquerait
+      // changerait le sens de « masquer » — l'auteur ne pourrait plus jamais
+      // revoir sa propre publication retirée, ce qui contredit la décision
+      // déjà prise (« l'auteur doit voir que sa publication a été masquée,
+      // pas la voir disparaître »).
+      allow read: if request.auth != null
+        && resource.data.cibles.hasAny(accesLecture());
+
+      // Création réservée aux pros. `auteurId` est cloué sur l'appelant :
+      // sans ça, n'importe quel pro pourrait publier au nom d'un collègue.
+      //
+      // Une portée individuelle ou groupe doit viser une unité du périmètre
+      // de l'auteur. Une portée établissement n'est soumise à AUCUNE
+      // restriction d'auteur : `peutDiffuserEtablissement` ne concerne que
+      // les documents et les messages, jamais le fil d'actu — décision
+      // actée, voir CLAUDE.md, section « Permission diffusion
+      // établissement ». Ne pas la réintroduire ici sans rouvrir cette
+      // décision : le fil d'actu est du contenu de valorisation
+      // institutionnelle, ouvert à tous les pros.
+      //
+      // Ce que cette règle NE vérifie PAS, en connaissance de cause : que
+      // chaque usager de `usagersConcernes` appartienne bien à l'unité
+      // visée. Le faire demanderait un get() par usager de la liste, coûteux
+      // et plafonné. L'interface ne propose déjà que les usagers du
+      // périmètre du pro ; borner l'unité (un seul get()) couvre l'essentiel
+      // du risque. Résidu accepté pour le MVP — décision (b) du brief,
+      // validée par Séb : un client modifié pourrait glisser un id d'usager
+      // d'une autre unité du même établissement. À reconsidérer si un
+      // incident réel le justifie.
+      allow create: if request.auth != null
+        && request.resource.data.auteurId == request.auth.uid
+        && userDoc().get('role', '') == 'pro'
+        && (
+          request.resource.data.typePublication == 'etablissement'
+          || request.resource.data.uniteId in userDoc().get('unitesAcces', [])
+        );
+
+      // Deux branches distinctes, jamais fusionnées — elles n'ouvrent pas
+      // les mêmes champs aux mêmes personnes.
+      //
+      // 1. Éditer le texte : l'AUTEUR SEUL. Modérer, c'est retirer, jamais
+      //    réécrire les mots de quelqu'un d'autre.
+      // 2. Masquer : l'auteur OU un compte `peutModerer`. Motif : si
+      //    l'auteur est absent, parti, ou s'il est lui-même le problème, il
+      //    doit exister un recours pour retirer une photo publiée par
+      //    erreur.
+      //
+      // Le `hasOnly` de chaque branche protège les champs immuables
+      // (auteurId, auteurNom, dateCreation, typePublication,
+      // usagersConcernes, uniteId, cibles, etablissementId) : aucune
+      // combinaison de clés modifiées ne peut les atteindre.
+      allow update: if request.auth != null
+        && (
+          (
+            champsModifiablesSeulement(['texte', 'modifiee', 'dateModification'])
+            && resource.data.auteurId == request.auth.uid
+          )
+          || (
+            champsModifiablesSeulement(['masquee', 'dateMasquage', 'masqueePar', 'motifMasquage'])
+            && (
+              resource.data.auteurId == request.auth.uid
+              || userDoc().get('peutModerer', false) == true
+            )
+          )
+        );
+
+      // Sans exception. Le masquage est la seule forme de retrait — voir
+      // CLAUDE.md, « jamais de suppression physique ».
+      allow delete: if false;
+    }
   }
 }

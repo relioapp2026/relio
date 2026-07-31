@@ -51,6 +51,13 @@ class AuthService {
       throw StateError('Aucun profil Relio trouvé pour ce compte.');
     }
 
+    // Les deux champs sont remis à zéro AVANT d'en renseigner un : sans ça,
+    // se connecter en famille après une session pro laisserait
+    // `currentProUser` renseigné, et tout code qui lit « le pro connecté »
+    // travaillerait sur l'identité de la session précédente.
+    currentProUser = null;
+    currentFamilleUser = null;
+
     switch (doc.data()!['role']) {
       case 'pro':
         final proUser = ProUser.fromFirestore(doc);
@@ -63,6 +70,23 @@ class AuthService {
       default:
         throw StateError('Rôle de compte inconnu ou manquant.');
     }
+  }
+
+  /// Ferme la session : Firebase Auth **et** l'identité en mémoire.
+  ///
+  /// Les deux sont indissociables. Ne vider que les champs statiques
+  /// laisserait le jeton Firebase actif — les règles continueraient de voir
+  /// l'ancien compte. Ne fermer que Firebase Auth laisserait l'app croire
+  /// qu'un utilisateur est connecté, et surtout **lequel**.
+  ///
+  /// Chantier Publications / étape 1 : jusqu'ici la « déconnexion » ne faisait
+  /// que revenir à l'écran de connexion. Le défaut est resté invisible tant
+  /// qu'aucun écran ne bornait ses requêtes sur l'identité en mémoire ; il est
+  /// devenu bloquant dès que le feed l'a fait.
+  Future<void> signOut() async {
+    currentProUser = null;
+    currentFamilleUser = null;
+    await _auth.signOut();
   }
 
   /// Crée un compte famille à partir d'un code d'invitation : compte

@@ -138,12 +138,24 @@ class _ProfilScreenState extends State<ProfilScreen> {
       ),
     );
 
-    if (confirmed == true && context.mounted) {
-      Navigator.of(context).pushAndRemoveUntil(
-        fadeRoute(const LoginScreen()),
-        (route) => false,
-      );
+    if (confirmed != true) return;
+
+    // Fermer la session AVANT de naviguer : l'écran de connexion ne doit
+    // jamais s'ouvrir sur une identité encore active. L'échec éventuel de
+    // `signOut` (réseau) ne doit pas retenir l'utilisateur sur son profil —
+    // les champs statiques, eux, sont vidés dans tous les cas.
+    try {
+      await AuthService().signOut();
+    } catch (_) {
+      AuthService.currentProUser = null;
+      AuthService.currentFamilleUser = null;
     }
+
+    if (!context.mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      fadeRoute(const LoginScreen()),
+      (route) => false,
+    );
   }
 
   void _handleTabTap(BuildContext context, FeedNavTab tab) {

@@ -30,7 +30,17 @@ class VisibiliteSelection {
   /// Id de l'usager concerné (portée individuelle uniquement).
   final String? usagerConcerneId;
 
-  /// Id de l'unité concernée (portée groupe uniquement).
+  /// Id de l'unité concernée.
+  ///
+  /// Renseigné pour la portée **groupe** (l'unité choisie) comme pour la
+  /// portée **individuelle** (l'unité de l'usager choisi), `null` pour
+  /// établissement.
+  ///
+  /// Chantier Publications / étape 1 — ce champ ne valait auparavant que pour
+  /// la portée groupe. Une publication individuelle doit pourtant porter son
+  /// unité : c'est elle qui la rend visible aux collègues de l'unité, et c'est
+  /// elle que la règle Firestore de création vérifie contre `unitesAcces`.
+  /// Sans ça, toute publication individuelle était refusée.
   final String? uniteConcerneeId;
 
   /// Ids des usagers cochés comme présents (portée groupe uniquement).
@@ -137,7 +147,12 @@ class _VisibiliteSelectorState extends State<VisibiliteSelector> {
       VisibiliteSelection(
         type: _type,
         usagerConcerneId: _selectedUsager?.id,
-        uniteConcerneeId: _selectedUnite?.id,
+        // En portée individuelle, l'unité est celle de l'usager choisi :
+        // aucun sélecteur d'unité n'est affiché dans ce parcours, donc
+        // `_selectedUnite` y reste null. Voir la note du champ.
+        uniteConcerneeId: _type == VisibiliteType.individuelle
+            ? _selectedUsager?.uniteId
+            : _selectedUnite?.id,
         usagersPresentsConcernesIds: presents,
       ),
     );
