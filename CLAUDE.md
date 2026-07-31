@@ -87,6 +87,9 @@ aujourd'hui. `journal_de_vie` relève de la même question. Non tranché.
 
 **Rôles :** famille (liée à un ou plusieurs usagers), professionnel (accès par unités), admin établissement.
 
+**Décisions verrouillées :**
+- **Préfixage des ids du référentiel.** Tout id référentiel doit rester préfixé par son type (`usager_`, `unite_`, `etab_`) et rester globalement unique tous types confondus. C'est cette propriété qui rend sûre la fusion `unitesAcces` + `usagersIds` + `etablissementId` dans la règle de lecture `publications` — un id non préfixé introduit un risque de collision inter-collections.
+
 ## Chantier Back (Firebase) — trajectoire actée
 
 **Deux projets Firebase distincts** : `relio-dev` (développement) et `relio-618ca` (le futur projet de production, déjà créé avant le début du chantier Flutter, sous le nom d'affichage « Relio »). Développement en direct contre `relio-dev` — **pas d'émulateur Firebase local** : décision actée (revient sur une version antérieure de ce plan qui prévoyait un émulateur), plus de justification pour un projet solo sans données réelles à protéger à ce stade. Les données restent toujours fictives même une fois `relio-dev` connecté — voir « RGPD et données sensibles » plus bas.
