@@ -25,6 +25,10 @@ import '../theme/app_colors.dart';
 /// L'état n'est **jamais porté par la couleur seule** : chaque pastille porte
 /// sa lettre et son signe, lisibles sans distinguer turquoise d'orange
 /// (accessibilité, valeur fondamentale du projet).
+///
+/// Le groupe est précédé d'une **icône d'appareil photo** qui dit de quoi
+/// parlent les pastilles — l'image. Elle ne porte aucun état : une seule par
+/// groupe, jamais une par pastille. Voir [_IconeSujet] pour le raisonnement.
 class ConsentImageEtat extends StatelessWidget {
   const ConsentImageEtat.compact({super.key, required this.consent})
       : detaille = false;
@@ -78,7 +82,9 @@ class ConsentImageEtat extends StatelessWidget {
     return Wrap(
       spacing: 4,
       runSpacing: 4,
+      crossAxisAlignment: WrapCrossAlignment.center,
       children: [
+        const _IconeSujet(),
         for (var i = 0; i < _types.length; i++)
           _Pastille(libelle: _types[i].$1, accorde: _valeurs[i]),
       ],
@@ -91,17 +97,40 @@ class ConsentImageEtat extends StatelessWidget {
       runSpacing: 2,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
-        Text(
-          'Image :',
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-            color: AppColors.marine.withValues(alpha: 0.55),
-          ),
-        ),
+        // L'icône remplace l'ancien libellé « Image : ». Les deux variantes se
+        // lisent désormais pareil, et le sujet est enfin explicite en compact,
+        // où rien ne le nommait.
+        const _IconeSujet(),
         for (var i = 0; i < _types.length; i++)
           _Pastille(libelle: _types[i].$2, accorde: _valeurs[i]),
       ],
+    );
+  }
+}
+
+/// Icône de sujet, en tête du groupe : elle dit **de quoi** parlent les
+/// pastilles (l'image), pas quel est leur état.
+///
+/// **Une seule par groupe, jamais une par pastille.** Trois raisons :
+/// - les trois pastilles portent le même sujet — le répéter trois fois par
+///   ligne dit trois fois la même chose ;
+/// - une unité peut compter 27 usagers, soit 81 icônes à l'écran pour une
+///   information constante ;
+/// - à 11 px, un pictogramme barré est une tache : distinguer « plein » de
+///   « barré » y est plus difficile que distinguer `✓` de `✗`. L'état reste
+///   donc porté par le signe de chaque pastille, pas par une icône.
+///
+/// Neutre en couleur (marine à 55 %, celle de l'ancien libellé « Image : ») :
+/// une icône teintée laisserait croire qu'elle porte un état.
+class _IconeSujet extends StatelessWidget {
+  const _IconeSujet();
+
+  @override
+  Widget build(BuildContext context) {
+    return Icon(
+      Icons.photo_camera_outlined,
+      size: 14,
+      color: AppColors.marine.withValues(alpha: 0.55),
     );
   }
 }
