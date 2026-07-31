@@ -5,6 +5,15 @@
 **Prérequis :** validation R3a close (scénarios 3 à 6)
 **Périmètre :** 2 fichiers, aucun changement de logique ni de données
 
+> **⚠️ Arbitrage du 2026-07-31 — ce brief est partiellement périmé.**
+> La recommandation « retirer le `RelioFooter` » (§4a) a été **écartée par Séb**. Le footer
+> reste sur les écrans de création, et deux règles distinctes ont été consignées dans
+> CLAUDE.md, section « Design system » : footer obligatoire sur les écrans d'entrée (règle 1),
+> footer comme marqueur des écrans de contenu vécu autour d'un enfant (règle 2).
+> Périmètre réel appliqué : §3.2 à §3.5 uniquement (en-tête, structure, marges, couleur du
+> bouton), **plus** l'ajout du footer sur `splash_screen` et `cahier_de_liaison_screen`.
+> Se référer à CLAUDE.md, pas à §4a de ce document.
+
 ---
 
 ## 1. Le constat

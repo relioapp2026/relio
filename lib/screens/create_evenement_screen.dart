@@ -6,6 +6,7 @@ import '../widgets/auth_background.dart';
 import '../widgets/chargement_perimetre_pro.dart';
 import '../widgets/relio_footer.dart';
 import '../widgets/section_label.dart';
+import '../widgets/simple_turquoise_header.dart';
 import '../widgets/visibilite_selector.dart';
 
 class CreateEvenementScreen extends StatefulWidget {
@@ -136,162 +137,144 @@ class _CreateEvenementScreenState extends State<CreateEvenementScreen> {
       behavior: HitTestBehavior.opaque,
       onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
       child: Scaffold(
-        body: AuthBackground(
-          child: SafeArea(
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-                  child: Row(
+        // Turquoise : sans ça le bandeau d'en-tête ne rejoint pas le haut de
+        // l'écran sous la SafeArea et laisse une bande blanche.
+        backgroundColor: AppColors.turquoise,
+        body: SafeArea(
+          child: Column(
+            children: [
+              const SimpleTurquoiseHeader(title: 'Nouvel événement'),
+              Expanded(
+                child: AuthBackground(
+                  // Le RelioFooter est dans l'AuthBackground, pas au niveau du
+                  // Scaffold : son marine à 45 % serait illisible sur le
+                  // turquoise. Il reste hors du ScrollView pour tenir le bas
+                  // de l'écran plutôt que de défiler avec le formulaire.
+                  child: Column(
                     children: [
-                      Material(
-                        color: AppColors.turquoise,
-                        borderRadius: BorderRadius.circular(12),
-                        child: InkWell(
-                          onTap: () => Navigator.of(context).pop(),
-                          borderRadius: BorderRadius.circular(12),
-                          child: const Padding(
-                            padding: EdgeInsets.all(10),
-                            child: Icon(Icons.arrow_back, color: Colors.white, size: 22),
-                          ),
-                        ),
-                      ),
                       Expanded(
-                        child: Center(
-                          child: Text(
-                            'Nouvel événement',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.marine,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 44),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: SingleChildScrollView(
-                    keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        ChargementPerimetrePro(
-                          builder: (context, perimetre) => VisibiliteSelector(
-                            typeLabel: "Type d'événement",
-                            usagers: perimetre.usagers,
-                            unites: perimetre.unites,
-                            onChanged: (value) => setState(() => _visibilite = value),
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        const SectionLabel('Titre'),
-                        const SizedBox(height: 8),
-                        TextField(
-                          controller: _titreController,
-                          style: TextStyle(color: AppColors.marine),
-                          decoration: _fieldDecoration("Titre de l'événement"),
-                        ),
-                        const SizedBox(height: 20),
-                        const SectionLabel('Description'),
-                        const SizedBox(height: 8),
-                        TextField(
-                          controller: _descriptionController,
-                          maxLines: 4,
-                          style: TextStyle(color: AppColors.marine),
-                          decoration: _fieldDecoration("Décrivez l'événement..."),
-                        ),
-                        const SizedBox(height: 20),
-                        // Material et non Container : un SwitchListTile peint
-                        // ses ondes de contact sur le Material le plus proche.
-                        // Un conteneur décoré intercalé les masque (assertion
-                        // Flutter en mode debug).
-                        Material(
-                          color: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                            side: BorderSide(color: AppColors.turquoise.withValues(alpha: 0.4)),
-                          ),
-                          clipBehavior: Clip.antiAlias,
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                            child: SwitchListTile(
-                              value: _touteLaJournee,
-                              onChanged: (value) => setState(() => _touteLaJournee = value),
-                              activeThumbColor: AppColors.turquoise,
-                              contentPadding: EdgeInsets.zero,
-                              title: Text(
-                                'Toute la journée',
-                                style: TextStyle(
-                                  color: AppColors.marine,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        const SectionLabel('Date'),
-                        const SizedBox(height: 8),
-                        _PickerField(
-                          icon: Icons.calendar_today_outlined,
-                          label: _formatDate(_date),
-                          onTap: _pickDate,
-                        ),
-                        if (!_touteLaJournee) ...[
-                          const SizedBox(height: 20),
-                          Row(
+                        child: SingleChildScrollView(
+                          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                          padding: const EdgeInsets.fromLTRB(16, 20, 16, 20),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                                  children: [
-                                    const SectionLabel('Heure de début'),
-                                    const SizedBox(height: 8),
-                                    _PickerField(
-                                      icon: Icons.access_time,
-                                      label: _formatHeure(_heureDebut),
-                                      onTap: _pickHeureDebut,
-                                    ),
-                                  ],
+                              ChargementPerimetrePro(
+                                builder: (context, perimetre) => VisibiliteSelector(
+                                  typeLabel: "Type d'événement",
+                                  usagers: perimetre.usagers,
+                                  unites: perimetre.unites,
+                                  onChanged: (value) => setState(() => _visibilite = value),
                                 ),
                               ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                              const SizedBox(height: 20),
+                              const SectionLabel('Titre'),
+                              const SizedBox(height: 8),
+                              TextField(
+                                controller: _titreController,
+                                style: TextStyle(color: AppColors.marine),
+                                decoration: _fieldDecoration("Titre de l'événement"),
+                              ),
+                              const SizedBox(height: 20),
+                              const SectionLabel('Description'),
+                              const SizedBox(height: 8),
+                              TextField(
+                                controller: _descriptionController,
+                                maxLines: 4,
+                                style: TextStyle(color: AppColors.marine),
+                                decoration: _fieldDecoration("Décrivez l'événement..."),
+                              ),
+                              const SizedBox(height: 20),
+                              // Material et non Container : un SwitchListTile peint
+                              // ses ondes de contact sur le Material le plus proche.
+                              // Un conteneur décoré intercalé les masque (assertion
+                              // Flutter en mode debug).
+                              Material(
+                                color: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                  side: BorderSide(color: AppColors.turquoise.withValues(alpha: 0.4)),
+                                ),
+                                clipBehavior: Clip.antiAlias,
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                                  child: SwitchListTile(
+                                    value: _touteLaJournee,
+                                    onChanged: (value) => setState(() => _touteLaJournee = value),
+                                    activeThumbColor: AppColors.turquoise,
+                                    contentPadding: EdgeInsets.zero,
+                                    title: Text(
+                                      'Toute la journée',
+                                      style: TextStyle(
+                                        color: AppColors.marine,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 20),
+                              const SectionLabel('Date'),
+                              const SizedBox(height: 8),
+                              _PickerField(
+                                icon: Icons.calendar_today_outlined,
+                                label: _formatDate(_date),
+                                onTap: _pickDate,
+                              ),
+                              if (!_touteLaJournee) ...[
+                                const SizedBox(height: 20),
+                                Row(
                                   children: [
-                                    const SectionLabel('Heure de fin'),
-                                    const SizedBox(height: 8),
-                                    _PickerField(
-                                      icon: Icons.access_time_filled,
-                                      label: _formatHeure(_heureFin),
-                                      onTap: _pickHeureFin,
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                                        children: [
+                                          const SectionLabel('Heure de début'),
+                                          const SizedBox(height: 8),
+                                          _PickerField(
+                                            icon: Icons.access_time,
+                                            label: _formatHeure(_heureDebut),
+                                            onTap: _pickHeureDebut,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                                        children: [
+                                          const SectionLabel('Heure de fin'),
+                                          const SizedBox(height: 8),
+                                          _PickerField(
+                                            icon: Icons.access_time_filled,
+                                            label: _formatHeure(_heureFin),
+                                            onTap: _pickHeureFin,
+                                          ),
+                                        ],
+                                      ),
                                     ),
                                   ],
                                 ),
+                              ],
+                              const SizedBox(height: 20),
+                              ElevatedButton(
+                                onPressed: _handleCreer,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.roseViolet,
+                                ),
+                                child: const Text("Créer l'événement"),
                               ),
                             ],
                           ),
-                        ],
-                        const SizedBox(height: 20),
-                        ElevatedButton(
-                          onPressed: _handleCreer,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.turquoise,
-                          ),
-                          child: const Text("Créer l'événement"),
                         ),
-                      ],
-                    ),
+                      ),
+                      const RelioFooter(),
+                    ],
                   ),
                 ),
-                const RelioFooter(),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),

@@ -7,6 +7,7 @@ import '../widgets/chargement_perimetre_pro.dart';
 import '../widgets/dashed_border_painter.dart';
 import '../widgets/relio_footer.dart';
 import '../widgets/section_label.dart';
+import '../widgets/simple_turquoise_header.dart';
 import '../widgets/visibilite_selector.dart';
 
 const _maxPhotos = 3;
@@ -85,135 +86,117 @@ class _CreatePublicationScreenState extends State<CreatePublicationScreen> {
       behavior: HitTestBehavior.opaque,
       onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
       child: Scaffold(
-        body: AuthBackground(
-          child: SafeArea(
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-                  child: Row(
+        // Turquoise : sans ça le bandeau d'en-tête ne rejoint pas le haut de
+        // l'écran sous la SafeArea et laisse une bande blanche.
+        backgroundColor: AppColors.turquoise,
+        body: SafeArea(
+          child: Column(
+            children: [
+              const SimpleTurquoiseHeader(title: 'Nouvelle publication'),
+              Expanded(
+                child: AuthBackground(
+                  // Le RelioFooter est dans l'AuthBackground, pas au niveau du
+                  // Scaffold : son marine à 45 % serait illisible sur le
+                  // turquoise. Il reste hors du ScrollView pour tenir le bas
+                  // de l'écran plutôt que de défiler avec le formulaire.
+                  child: Column(
                     children: [
-                      Material(
-                        color: AppColors.turquoise,
-                        borderRadius: BorderRadius.circular(12),
-                        child: InkWell(
-                          onTap: () => Navigator.of(context).pop(),
-                          borderRadius: BorderRadius.circular(12),
-                          child: const Padding(
-                            padding: EdgeInsets.all(10),
-                            child: Icon(Icons.arrow_back, color: Colors.white, size: 22),
-                          ),
-                        ),
-                      ),
                       Expanded(
-                        child: Center(
-                          child: Text(
-                            'Nouvelle publication',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.marine,
-                            ),
+                        child: SingleChildScrollView(
+                          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                          padding: const EdgeInsets.fromLTRB(16, 20, 16, 20),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              ChargementPerimetrePro(
+                                builder: (context, perimetre) => VisibiliteSelector(
+                                  typeLabel: 'Type de publication',
+                                  usagers: perimetre.usagers,
+                                  unites: perimetre.unites,
+                                  onChanged: (value) => setState(() => _visibilite = value),
+                                  showConsentBadge: true,
+                                ),
+                              ),
+                              const SizedBox(height: 20),
+                              const SectionLabel('Photos'),
+                              const SizedBox(height: 8),
+                              SizedBox(
+                                height: 80,
+                                child: ListView.separated(
+                                  scrollDirection: Axis.horizontal,
+                                  itemCount: 1 + _photos.length,
+                                  separatorBuilder: (_, _) => const SizedBox(width: 10),
+                                  itemBuilder: (context, index) {
+                                    if (index == 0) {
+                                      return _DashedAddTile(
+                                        enabled: _photos.length < _maxPhotos,
+                                        onTap: _addMockPhoto,
+                                      );
+                                    }
+                                    final photoIndex = index - 1;
+                                    return _PhotoTile(
+                                      color: _photos[photoIndex],
+                                      onRemove: () => _removePhoto(photoIndex),
+                                    );
+                                  },
+                                ),
+                              ),
+                              const SizedBox(height: 20),
+                              const SectionLabel('Message'),
+                              const SizedBox(height: 8),
+                              TextField(
+                                controller: _messageController,
+                                maxLines: 5,
+                                maxLength: 1000,
+                                style: TextStyle(color: AppColors.marine),
+                                decoration: InputDecoration(
+                                  hintText: 'Décrivez le moment partagé...',
+                                  hintStyle: TextStyle(color: AppColors.marine.withValues(alpha: 0.4)),
+                                  filled: true,
+                                  fillColor: AppColors.champText,
+                                  counterStyle: TextStyle(
+                                    color: AppColors.marine.withValues(alpha: 0.4),
+                                    fontSize: 12,
+                                  ),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                    borderSide: BorderSide(
+                                      color: AppColors.turquoise.withValues(alpha: 0.6),
+                                      width: 1.4,
+                                    ),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                    borderSide: BorderSide(
+                                      color: AppColors.turquoise.withValues(alpha: 0.6),
+                                      width: 1.4,
+                                    ),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                    borderSide: const BorderSide(color: AppColors.turquoise, width: 2),
+                                  ),
+                                ),
+                                onChanged: (_) => setState(() {}),
+                              ),
+                              const SizedBox(height: 20),
+                              ElevatedButton(
+                                onPressed: _handlePublish,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.roseViolet,
+                                ),
+                                child: const Text('Publier'),
+                              ),
+                            ],
                           ),
                         ),
                       ),
-                      const SizedBox(width: 44),
+                      const RelioFooter(),
                     ],
                   ),
                 ),
-                Expanded(
-                  child: SingleChildScrollView(
-                    keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        ChargementPerimetrePro(
-                          builder: (context, perimetre) => VisibiliteSelector(
-                            typeLabel: 'Type de publication',
-                            usagers: perimetre.usagers,
-                            unites: perimetre.unites,
-                            onChanged: (value) => setState(() => _visibilite = value),
-                            showConsentBadge: true,
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        const SectionLabel('Photos'),
-                        const SizedBox(height: 8),
-                        SizedBox(
-                          height: 80,
-                          child: ListView.separated(
-                            scrollDirection: Axis.horizontal,
-                            itemCount: 1 + _photos.length,
-                            separatorBuilder: (_, _) => const SizedBox(width: 10),
-                            itemBuilder: (context, index) {
-                              if (index == 0) {
-                                return _DashedAddTile(
-                                  enabled: _photos.length < _maxPhotos,
-                                  onTap: _addMockPhoto,
-                                );
-                              }
-                              final photoIndex = index - 1;
-                              return _PhotoTile(
-                                color: _photos[photoIndex],
-                                onRemove: () => _removePhoto(photoIndex),
-                              );
-                            },
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        const SectionLabel('Message'),
-                        const SizedBox(height: 8),
-                        TextField(
-                          controller: _messageController,
-                          maxLines: 5,
-                          maxLength: 1000,
-                          style: TextStyle(color: AppColors.marine),
-                          decoration: InputDecoration(
-                            hintText: 'Décrivez le moment partagé...',
-                            hintStyle: TextStyle(color: AppColors.marine.withValues(alpha: 0.4)),
-                            filled: true,
-                            fillColor: AppColors.champText,
-                            counterStyle: TextStyle(
-                              color: AppColors.marine.withValues(alpha: 0.4),
-                              fontSize: 12,
-                            ),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(14),
-                              borderSide: BorderSide(
-                                color: AppColors.turquoise.withValues(alpha: 0.6),
-                                width: 1.4,
-                              ),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(14),
-                              borderSide: BorderSide(
-                                color: AppColors.turquoise.withValues(alpha: 0.6),
-                                width: 1.4,
-                              ),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(14),
-                              borderSide: const BorderSide(color: AppColors.turquoise, width: 2),
-                            ),
-                          ),
-                          onChanged: (_) => setState(() {}),
-                        ),
-                        const SizedBox(height: 20),
-                        ElevatedButton(
-                          onPressed: _handlePublish,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.turquoise,
-                          ),
-                          child: const Text('Publier'),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const RelioFooter(),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),

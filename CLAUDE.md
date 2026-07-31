@@ -27,6 +27,48 @@ Relio est une plateforme SaaS mobile connectant les établissements médico-soci
 - Canvas de référence : 390×844 px, mais largeurs fluides (jamais de largeurs fixes en pixels)
 - **Règles d'espacement :** 24 px après le header, 20 px entre les blocs, 8 px entre un label et son widget
 
+## Design system
+
+### Chrome des écrans secondaires
+
+Toute page secondaire (hors feeds) utilise `SimpleTurquoiseHeader` — jamais un en-tête
+recopié à la main. Structure de référence : `Scaffold(backgroundColor: AppColors.turquoise)`
+→ `SafeArea` → `Column[SimpleTurquoiseHeader, Expanded(AuthBackground(…))]`. Le fond turquoise
+du `Scaffold` n'est pas décoratif : sans lui, le bandeau ne rejoint pas le haut de l'écran sous
+la `SafeArea` et laisse une bande blanche. Marges horizontales du formulaire : **16 px**.
+Bouton d'action : **rose-violet**, pleine largeur (le turquoise est la couleur principale, pas
+celle des actions).
+
+Appliqué aux 4 écrans de création/envoi (publication, événement, document, message) —
+uniformisation faite le 2026-07-31, les écrans d'envoi étaient la référence.
+
+### RelioFooter — deux règles distinctes, à ne pas fusionner
+
+1. **Le `RelioFooter` est obligatoire sur les écrans d'entrée** : Splash, Welcome, Login,
+   Inscription (avec code), Mot de passe oublié. Raison : première impression de marque, avant
+   tout contenu lié à un enfant.
+2. **Le `RelioFooter` marque les écrans de création ou de consultation de contenu vécu autour
+   d'un enfant** : Publication, Événement, Cahier de liaison, et plus tard Messages/Documents/
+   Agenda. Il n'apparaît pas sur les écrans utilitaires (formulaires système, sélection,
+   paramètres, authentification hors écrans d'entrée listés en 1).
+
+   **Les 4 écrans de création le portent tous** (2026-07-31) : Nouvelle publication, Nouvel
+   événement, Envoyer un document, Envoyer un message. Les deux derniers l'ont reçu à la
+   validation — un écran de création qui l'a et son voisin qui ne l'a pas, c'est l'incohérence
+   que ce chantier corrige.
+
+**Contrainte de placement :** toujours sur fond clair (`AuthBackground` ou équivalent), jamais
+directement sur le turquoise du `Scaffold` ni sur le `FeedBottomNav` — son marine à 45 %
+d'opacité y serait illisible. Sur un écran portant une barre de navigation, il se place *dans*
+l'`AuthBackground`, au-dessus de la barre.
+
+**Sur l'horizon :** la question ouverte porte sur les écrans de **consultation**, pas de
+création (ceux-là sont tranchés ci-dessus). Au chantier Messagerie, vérifier si les listes et
+détails Messages / Documents / Agenda — `messagerie_famille`, `messages_pro`,
+`documents_famille`, `documents_pro`, `agenda_famille`, `agenda_pro`, `message_detail`,
+`document_detail` — doivent recevoir le `RelioFooter` au titre de la règle 2. Aucun ne l'a
+aujourd'hui. `journal_de_vie` relève de la même question. Non tranché.
+
 ## Architecture des données (Firestore — 11 collections)
 
 `etablissements`, `unites`, `usagers`, `users`, `publications`, `commentaires`, `agenda`, `documents`, `notifications`, `messages`, `codes_invitation`

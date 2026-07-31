@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
 import '../utils/fade_route.dart';
+import '../widgets/relio_footer.dart';
 import 'welcome_screen.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -63,6 +64,12 @@ class _SplashScreenState extends State<SplashScreen> {
                 ),
               ],
             ),
+          ),
+          // En Align dans le Stack plutôt qu'en Column : le bloc central
+          // (logo, titre, spinner) reste exactement centré sur l'écran.
+          const Align(
+            alignment: Alignment.bottomCenter,
+            child: SafeArea(child: RelioFooter()),
           ),
         ],
       ),

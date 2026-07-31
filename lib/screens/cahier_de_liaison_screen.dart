@@ -12,6 +12,7 @@ import '../widgets/auth_background.dart';
 import '../widgets/consent_image_etat.dart';
 import '../widgets/count_badge.dart';
 import '../widgets/feed_bottom_nav.dart';
+import '../widgets/relio_footer.dart';
 import '../widgets/simple_turquoise_header.dart';
 import 'agenda_famille_screen.dart';
 import 'agenda_pro_screen.dart';
@@ -158,61 +159,71 @@ class _CahierDeLiaisonScreenState extends State<CahierDeLiaisonScreen> {
             const SimpleTurquoiseHeader(title: 'Cahier de liaison'),
             Expanded(
               child: AuthBackground(
-                child: ListView(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                // Le RelioFooter est dans l'AuthBackground et au-dessus de la
+                // barre de navigation : son marine à 45 % serait illisible sur
+                // le turquoise du Scaffold ou du FeedBottomNav.
+                child: Column(
                   children: [
-                    _buildUsagerCard(),
-                    const SizedBox(height: 20),
-                    _CahierTile(
-                      icon: Icons.chat_bubble_outline,
-                      color: AppColors.roseViolet,
-                      title: 'Messagerie',
-                      apercu: dernierMessage != null
-                          ? '${dernierMessage.expediteurNom} : ${dernierMessage.contenu}'
-                          : 'Aucun message récent',
-                      badgeCount: messagesNonConfirmesPourUsager(usagerId),
-                      onTap: () => Navigator.of(context).push(
-                        fadeRoute(
-                          isPro
-                              ? MessagesProScreen(usagerId: usagerId, usagerNom: usagerName)
-                              : const MessagerieFamilleScreen(),
-                        ),
+                    Expanded(
+                      child: ListView(
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                        children: [
+                          _buildUsagerCard(),
+                          const SizedBox(height: 20),
+                          _CahierTile(
+                            icon: Icons.chat_bubble_outline,
+                            color: AppColors.roseViolet,
+                            title: 'Messagerie',
+                            apercu: dernierMessage != null
+                                ? '${dernierMessage.expediteurNom} : ${dernierMessage.contenu}'
+                                : 'Aucun message récent',
+                            badgeCount: messagesNonConfirmesPourUsager(usagerId),
+                            onTap: () => Navigator.of(context).push(
+                              fadeRoute(
+                                isPro
+                                    ? MessagesProScreen(usagerId: usagerId, usagerNom: usagerName)
+                                    : const MessagerieFamilleScreen(),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          _CahierTile(
+                            icon: Icons.event_outlined,
+                            color: AppColors.turquoise,
+                            title: 'Agenda',
+                            apercu: prochainEvenement != null
+                                ? '${prochainEvenement.titre} · ${_formatDate(prochainEvenement.dateDebut)}'
+                                : 'Aucun événement à venir',
+                            badgeCount: badgeAgenda,
+                            onTap: () => Navigator.of(context).push(
+                              fadeRoute(
+                                isPro
+                                    ? AgendaProScreen(usagerId: usagerId, usagerName: usagerName)
+                                    : const AgendaFamilleScreen(),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          _CahierTile(
+                            icon: Icons.folder_outlined,
+                            color: AppColors.marine,
+                            title: 'Documents',
+                            apercu: dernierDocument != null
+                                ? '${dernierDocument.titre} · envoyé le ${_formatDate(dernierDocument.dateEnvoi)}'
+                                : 'Aucun document récent',
+                            badgeCount: documentsNonConfirmesPourUsager(usagerId),
+                            onTap: () => Navigator.of(context).push(
+                              fadeRoute(
+                                isPro
+                                    ? DocumentsProScreen(usagerId: usagerId, usagerNom: usagerName)
+                                    : const DocumentsFamilleScreen(),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    _CahierTile(
-                      icon: Icons.event_outlined,
-                      color: AppColors.turquoise,
-                      title: 'Agenda',
-                      apercu: prochainEvenement != null
-                          ? '${prochainEvenement.titre} · ${_formatDate(prochainEvenement.dateDebut)}'
-                          : 'Aucun événement à venir',
-                      badgeCount: badgeAgenda,
-                      onTap: () => Navigator.of(context).push(
-                        fadeRoute(
-                          isPro
-                              ? AgendaProScreen(usagerId: usagerId, usagerName: usagerName)
-                              : const AgendaFamilleScreen(),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    _CahierTile(
-                      icon: Icons.folder_outlined,
-                      color: AppColors.marine,
-                      title: 'Documents',
-                      apercu: dernierDocument != null
-                          ? '${dernierDocument.titre} · envoyé le ${_formatDate(dernierDocument.dateEnvoi)}'
-                          : 'Aucun document récent',
-                      badgeCount: documentsNonConfirmesPourUsager(usagerId),
-                      onTap: () => Navigator.of(context).push(
-                        fadeRoute(
-                          isPro
-                              ? DocumentsProScreen(usagerId: usagerId, usagerNom: usagerName)
-                              : const DocumentsFamilleScreen(),
-                        ),
-                      ),
-                    ),
+                    const RelioFooter(),
                   ],
                 ),
               ),

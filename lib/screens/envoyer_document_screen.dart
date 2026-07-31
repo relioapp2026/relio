@@ -11,6 +11,7 @@ import '../widgets/auth_background.dart';
 import '../widgets/chargement_perimetre_pro.dart';
 import '../widgets/dashed_border_painter.dart';
 import '../widgets/fichier_icon.dart';
+import '../widgets/relio_footer.dart';
 import '../widgets/section_label.dart';
 import '../widgets/simple_turquoise_header.dart';
 import '../widgets/visibilite_selector.dart';
@@ -161,71 +162,82 @@ class _EnvoyerDocumentScreenState extends State<EnvoyerDocumentScreen> {
               const SimpleTurquoiseHeader(title: 'Envoyer un document'),
               Expanded(
                 child: AuthBackground(
-                  child: SingleChildScrollView(
-                    keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-                    padding: const EdgeInsets.fromLTRB(16, 20, 16, 20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        ChargementPerimetrePro(
-                          // Un document s'adresse à une famille : seuls les
-                          // usagers qui en ont une rattachée sont proposés.
-                          filtreUsagers: (usager) =>
-                              mockUsagerIdsAvecFamilles.contains(usager.id),
-                          builder: (context, perimetre) => VisibiliteSelector(
-                            typeLabel: 'Portée du document',
-                            usagers: perimetre.usagers,
-                            unites: perimetre.unites,
-                            onChanged: (value) => setState(() => _visibilite = value),
-                            restrictionEtablissementActive: true,
-                            // Un document accepte les images (PNG/JPEG/HEIC),
-                            // pas seulement les PDF : joindre la photo d'un
-                            // enfant est donc possible ici, et l'absence
-                            // d'autorisation doit se voir. L'écran d'envoi de
-                            // message, lui, n'a aucune pièce jointe — le badge
-                            // n'y aurait rien à signaler.
-                            showConsentBadge: true,
-                            messageAucunUsager:
-                                'Aucun usager avec une famille rattachée dans vos unités.',
+                  // Le RelioFooter est dans l'AuthBackground, pas au niveau du
+                  // Scaffold : son marine à 45 % serait illisible sur le
+                  // turquoise. Il reste hors du ScrollView pour tenir le bas
+                  // de l'écran plutôt que de défiler avec le formulaire.
+                  child: Column(
+                    children: [
+                      Expanded(
+                        child: SingleChildScrollView(
+                          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                          padding: const EdgeInsets.fromLTRB(16, 20, 16, 20),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              ChargementPerimetrePro(
+                                // Un document s'adresse à une famille : seuls les
+                                // usagers qui en ont une rattachée sont proposés.
+                                filtreUsagers: (usager) =>
+                                    mockUsagerIdsAvecFamilles.contains(usager.id),
+                                builder: (context, perimetre) => VisibiliteSelector(
+                                  typeLabel: 'Portée du document',
+                                  usagers: perimetre.usagers,
+                                  unites: perimetre.unites,
+                                  onChanged: (value) => setState(() => _visibilite = value),
+                                  restrictionEtablissementActive: true,
+                                  // Un document accepte les images (PNG/JPEG/HEIC),
+                                  // pas seulement les PDF : joindre la photo d'un
+                                  // enfant est donc possible ici, et l'absence
+                                  // d'autorisation doit se voir. L'écran d'envoi de
+                                  // message, lui, n'a aucune pièce jointe — le badge
+                                  // n'y aurait rien à signaler.
+                                  showConsentBadge: true,
+                                  messageAucunUsager:
+                                      'Aucun usager avec une famille rattachée dans vos unités.',
+                                ),
+                              ),
+                              const SizedBox(height: 20),
+                              const SectionLabel('Type de document'),
+                              const SizedBox(height: 8),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: [
+                                  for (final type in TypeDocument.values) _buildTypeChip(type),
+                                ],
+                              ),
+                              const SizedBox(height: 20),
+                              const SectionLabel('Titre'),
+                              const SizedBox(height: 8),
+                              TextField(
+                                controller: _titreController,
+                                style: TextStyle(color: AppColors.marine),
+                              ),
+                              const SizedBox(height: 20),
+                              const SectionLabel('Description'),
+                              const SizedBox(height: 8),
+                              TextField(
+                                controller: _descriptionController,
+                                maxLines: 4,
+                                style: TextStyle(color: AppColors.marine),
+                              ),
+                              const SizedBox(height: 20),
+                              const SectionLabel('Fichier'),
+                              const SizedBox(height: 8),
+                              _buildFichierField(),
+                              const SizedBox(height: 20),
+                              ElevatedButton(
+                                onPressed: _handleEnvoyer,
+                                style: ElevatedButton.styleFrom(backgroundColor: AppColors.roseViolet),
+                                child: const Text('Envoyer'),
+                              ),
+                            ],
                           ),
                         ),
-                        const SizedBox(height: 20),
-                        const SectionLabel('Type de document'),
-                        const SizedBox(height: 8),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            for (final type in TypeDocument.values) _buildTypeChip(type),
-                          ],
-                        ),
-                        const SizedBox(height: 20),
-                        const SectionLabel('Titre'),
-                        const SizedBox(height: 8),
-                        TextField(
-                          controller: _titreController,
-                          style: TextStyle(color: AppColors.marine),
-                        ),
-                        const SizedBox(height: 20),
-                        const SectionLabel('Description'),
-                        const SizedBox(height: 8),
-                        TextField(
-                          controller: _descriptionController,
-                          maxLines: 4,
-                          style: TextStyle(color: AppColors.marine),
-                        ),
-                        const SizedBox(height: 20),
-                        const SectionLabel('Fichier'),
-                        const SizedBox(height: 8),
-                        _buildFichierField(),
-                        const SizedBox(height: 20),
-                        ElevatedButton(
-                          onPressed: _handleEnvoyer,
-                          style: ElevatedButton.styleFrom(backgroundColor: AppColors.roseViolet),
-                          child: const Text('Envoyer'),
-                        ),
-                      ],
-                    ),
+                      ),
+                      const RelioFooter(),
+                    ],
                   ),
                 ),
               ),
