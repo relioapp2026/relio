@@ -150,7 +150,7 @@ Ce qui a été fait en R1 :
 1. **Consentement image → `mockUsagersCatalogue`, levée en R3b.** Les 55 documents semés portent `consentImage` à `false` (R2 a posé `allow write: if false`). Le lire depuis Firestore afficherait « aucun consentement » sur les 6 usagers à état différencié (`usager_001`, `002`, `003`, `017`, `031`, `032`) et **casserait silencieusement** le test du badge — pire qu'une panne franche. Une seule fonction lit ce champ dans toute l'app (`usagerSansAutorisationImage`), à laquelle `UsagerAffichage` délègue.
 2. **Lien usager → comptes famille → `mockFamilles`, levée au chantier Messagerie.** La règle `users/{uid}` n'autorise chacun à lire que son propre document : aucune requête cliente ne peut retrouver les familles rattachées à un usager. Dans `envoyer_document_screen`/`envoyer_message_screen`, seul l'affichage du sélecteur est migré ; `_resolveDestinataires` reste sur le mock.
 
-**R3b — prérequis du pilote, pas du chantier Publications** : ouvrir un chemin d'écriture pour le consentement image (probablement une Cloud Function, pour préserver `allow write: if false` sur le reste du document `usagers`). Devient bloquant au moment où de vraies familles utiliseront Relio — donc adossé au dossier d'autorisation du pilote, pas au calendrier de code. **Jusque-là, le consentement image vit sur le mock et n'est persisté nulle part.** Autres sujets R3+ : cache de lecture du référentiel (si la mesure le justifie), custom claims (conditionné à la même mesure).
+**R3b — prérequis du pilote, ET désormais prérequis de l'étape 2 (photos)** : ouvrir un chemin d'écriture pour le consentement image (probablement une Cloud Function, pour préserver `allow write: if false` sur le reste du document `usagers`). Devient bloquant au moment où de vraies familles utiliseront Relio — donc adossé au dossier d'autorisation du pilote. **Mise à jour du 2026-08-16 :** R3b entre aussi au calendrier de code, en amont de l'étape 2 — voir « Séquencement Publications Étape 2 » plus bas. La phrase « pas du chantier Publications » n'est donc plus vraie. **Jusque-là, le consentement image vit sur le mock et n'est persisté nulle part.** Autres sujets R3+ : cache de lecture du référentiel (si la mesure le justifie), custom claims (conditionné à la même mesure).
 
 **Point ouvert à trancher en R3b — refus explicite vs absence de réponse** : le modèle `ConsentImage` distingue refus explicite (`dateConsentement` renseignée, valeur `false`) et absence de réponse (`dateConsentement` à `null`), mais l'affichage actuel fusionne les deux en orange. Les 55 usagers semés sont tous dans le second cas. Décision d'affichage à prendre lors de R3b, quand le consentement passera sur Firestore — probablement trois états visuels distincts plutôt que deux. Concerne `ConsentImageEtat` (Mes unités, en-tête du Cahier de liaison) et `ConsentImageBadge` (écrans de publication et d'envoi).
 
@@ -164,6 +164,26 @@ Ce qui a été fait en R1 :
 1. **Publications texte seul** — ✅ **CLOSE, validée sur Pixel 9a le 2026-07-31.** Voir le détail ci-dessous.
 2. **Upload photos** : Firebase Storage, règles de sécurité Storage, compression avant upload (une photo brute de Pixel 9a fait 3-5 Mo, volumétrie à surveiller sur le plan Blaze), états de chargement dans l'UI. **Lire le POINT BLOQUANT de la section « Logique métier » avant de l'ouvrir.**
 3. **Likes et commentaires** : dépendent des publications déjà existantes, donc après.
+
+**Séquencement Publications Étape 2 (photos) — décision du 2026-08-16**
+
+Storage et l'upload photo pour les trois types de publication (individuelle, groupe,
+établissement) s'activent **ensemble, en un seul chantier, après R3b** — pas d'activation
+partielle ni de feature flag par type.
+
+Raison : établissement n'a structurellement aucun `usagersConcernes`, donc R3b (écriture du
+consentement) ne le concerne pas techniquement. Une activation asymétrique était possible
+(établissement ouvert dès un texte d'alerte, individuelle/groupe gatés par R3b) mais a été
+écartée au profit de la simplicité — une seule condition d'activation pour tout Storage, pas
+deux comportements à maintenir pour gagner une session sur un seul type.
+
+**Garde-fou retenu pour établissement** (une fois Storage ouvert) : texte d'alerte fixe affiché
+sous le sélecteur de photo à chaque publication établissement (**pas une modale qu'on ferme une
+fois**) : rappel de vérifier l'absence de visage identifiable. S'ajoute à
+`peutDiffuserEtablissement` (qui restreint qui accède à ce type) et à la formation du pro (hors
+produit). **Pas de détection technique, pas de checkbox de déclaration.**
+
+**Ordre : R3b (consentement, tous types) → Étape 2 (Storage + photos, tous types, ensemble).**
 
 ### Publications — étape 1 close (2026-07-31)
 
@@ -225,7 +245,9 @@ Chaque publication : texte (max 1000 caractères), 1 à 5 photos, auteur, date, 
 
 Les publications de type `etablissement` n'ont, par construction, aucun `usagersConcernes` — donc aucun mécanisme de vérification de consentement image ne s'applique à elles, quel que soit l'auteur. Dès que l'étape 2 introduit les photos, ce point doit être tranché avant d'ouvrir l'upload sur ce type de publication : soit un mécanisme de déclaration explicite au moment de publier (ex. confirmation « aucun enfant identifiable dont la famille a refusé le consentement n'apparaît sur cette photo »), soit une restriction de contenu (publications établissement limitées à du contenu non-identifiant : décors, bâtiments, activités sans visage reconnaissable), soit la restriction d'auteur envisagée aujourd'hui (`peutDiffuserEtablissement`) combinée à une formation ciblée des coordinateurs sur ce risque précis. **Ne pas ouvrir l'étape 2 sur les publications établissement sans avoir tranché ce point.**
 
-**Mise à jour du 2026-08-16 :** la troisième branche (restriction d'auteur) est **retenue et implémentée** — `peutDiffuserEtablissement` gate désormais la publication établissement, voir « portée étendue ». Elle réduit le risque en réservant ce type de publication à des comptes formés, mais **ne referme pas le point bloquant** : elle contrôle *qui* publie, pas *ce que la photo montre*. Un coordinateur autorisé peut toujours diffuser à tout l'établissement la photo d'un enfant dont la famille a refusé le consentement « établissement ». Le volet contenu (déclaration explicite au moment de publier, et/ou affichage des refus en vigueur) reste donc à trancher avant l'upload.
+**Mise à jour du 2026-08-16 :** la troisième branche (restriction d'auteur) est **retenue et implémentée** — `peutDiffuserEtablissement` gate désormais la publication établissement, voir « portée étendue ». Elle réduit le risque en réservant ce type de publication à des comptes formés, mais **ne referme pas le point bloquant** : elle contrôle *qui* publie, pas *ce que la photo montre*. Un coordinateur autorisé peut toujours diffuser à tout l'établissement la photo d'un enfant dont la famille a refusé le consentement « établissement ».
+
+**Le volet contenu a été tranché le 2026-08-16** — voir « Séquencement Publications Étape 2 » plus bas. Garde-fou retenu : un **texte d'alerte fixe** sous le sélecteur de photo, à chaque publication établissement. **Ni checkbox de déclaration, ni détection technique, ni affichage de la liste des refus** — les trois ont été envisagés puis écartés. Le point bloquant est donc refermé sur le principe ; il reste à implémenter au moment de l'étape 2.
 
 ## Consentement image (usagers)
 
