@@ -144,6 +144,34 @@ service cloud.firestore {
               .concat([u.get('etablissementId', '')]);
     }
 
+    // Droit de créer la publication décrite par `data`, en UN seul get() —
+    // même raisonnement que `accesLecture()` ci-dessus, et même raison
+    // d'être une fonction : `let` n'est utilisable qu'à l'intérieur d'une
+    // fonction. Sans elle, `userDoc()` serait appelé trois fois (rôle,
+    // permission, unités) pour une seule création.
+    //
+    // Les deux portées ne se vérifient pas de la même façon, d'où le
+    // ternaire plutôt qu'un `||` :
+    //   - établissement → aucune unité à vérifier (le champ vaut `null`),
+    //     mais la permission `peutDiffuserEtablissement` est exigée ;
+    //   - individuelle / groupe → l'unité visée doit être dans `unitesAcces`,
+    //     aucune permission supplémentaire (CLAUDE.md, « portée étendue »).
+    //
+    // Avant le 2026-08-16, la branche établissement était un laissez-passer :
+    // le `||` la rendait vraie sans rien vérifier. Décision inversée depuis —
+    // une photo diffusée à toutes les familles de l'établissement est au
+    // moins aussi sensible qu'un document. Ne pas revenir à un `||` sans
+    // rouvrir la décision, ça rouvrirait le passage en silence.
+    function peutCreer(data) {
+      let u = userDoc();
+      return u.get('role', '') == 'pro'
+        && (
+          data.typePublication == 'etablissement'
+            ? u.get('peutDiffuserEtablissement', false) == true
+            : data.uniteId in u.get('unitesAcces', [])
+        );
+    }
+
     // Champs qu'aucune mise à jour ne doit jamais pouvoir toucher. Ils
     // déterminent l'auteur et la visibilité : les rendre modifiables
     // permettrait de réattribuer une publication ou d'en élargir la portée
@@ -168,14 +196,15 @@ service cloud.firestore {
       // Création réservée aux pros. `auteurId` est cloué sur l'appelant :
       // sans ça, n'importe quel pro pourrait publier au nom d'un collègue.
       //
-      // Une portée individuelle ou groupe doit viser une unité du périmètre
-      // de l'auteur. Une portée établissement n'est soumise à AUCUNE
-      // restriction d'auteur : `peutDiffuserEtablissement` ne concerne que
-      // les documents et les messages, jamais le fil d'actu — décision
-      // actée, voir CLAUDE.md, section « Permission diffusion
-      // établissement ». Ne pas la réintroduire ici sans rouvrir cette
-      // décision : le fil d'actu est du contenu de valorisation
-      // institutionnelle, ouvert à tous les pros.
+      // Le périmètre lui-même est vérifié par `peutCreer()` ci-dessus :
+      // unité du pro pour une portée individuelle ou groupe,
+      // `peutDiffuserEtablissement` pour une portée établissement.
+      //
+      // Cette règle ne s'applique QU'À LA CRÉATION. `allow read` et
+      // `allow update` restent inchangés : une publication établissement
+      // déjà créée reste lisible et corrigeable par son auteur même s'il
+      // perd la permission ensuite. Aucune gestion rétroactive — décision
+      // explicite du 2026-08-16, voir CLAUDE.md, « portée étendue ».
       //
       // Ce que cette règle NE vérifie PAS, en connaissance de cause : que
       // chaque usager de `usagersConcernes` appartienne bien à l'unité
@@ -188,11 +217,7 @@ service cloud.firestore {
       // incident réel le justifie.
       allow create: if request.auth != null
         && request.resource.data.auteurId == request.auth.uid
-        && userDoc().get('role', '') == 'pro'
-        && (
-          request.resource.data.typePublication == 'etablissement'
-          || request.resource.data.uniteId in userDoc().get('unitesAcces', [])
-        );
+        && peutCreer(request.resource.data);
 
       // Deux branches distinctes, jamais fusionnées — elles n'ouvrent pas
       // les mêmes champs aux mêmes personnes.

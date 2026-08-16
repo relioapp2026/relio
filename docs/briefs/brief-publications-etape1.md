@@ -5,20 +5,39 @@
 **Prérequis :** Référentiel R1/R2/R3a clos, uniformisation des écrans de création close (commit `59f4fa7`)
 **Cible Firebase :** `relio-dev` exclusivement
 
-> **⚠️ Correction du 2026-07-31 — §2, §7.2 et §8 sont erronés sur un point.**
-> Ce brief soumet la création d'une publication de type `etablissement` à
-> `peutDiffuserEtablissement`. **C'est faux.** CLAUDE.md acte, à deux endroits, que
-> `peutDiffuserEtablissement` ne concerne **que les documents et les messages**, et que les
-> publications d'établissement du fil d'actu restent **ouvertes à tous les pros sans
-> restriction** (contenu de valorisation institutionnelle). Erreur du brief, constatée à la
-> validation et tranchée par Séb : CLAUDE.md fait foi.
-> - §2, règle `create` : la clause `peutDiffuserEtablissement` est **retirée**.
-> - §7 scénario 2 : devient « `pro.test` publie pour l'établissement → **réussit** ».
-> - §8 : la ligne « gating `peutDiffuserEtablissement` fonctionnel » ne s'applique pas.
-> - Pas de chip grisé dans le fil d'actu pour ce type, contrairement aux documents/messages.
+> **⚠️ Ce point a changé deux fois — lire l'état final ci-dessous, pas le §2 seul.**
 >
-> Voir CLAUDE.md, « Permission diffusion établissement », et le point bloquant de l'étape 2
-> sur le consentement image des publications d'établissement.
+> **État actuel (2026-08-16) : la création d'une publication de type `etablissement` EXIGE
+> `peutDiffuserEtablissement` sur le compte pro auteur.** La permission gate désormais trois
+> surfaces — documents, messages, et le fil d'actu. Le §2 de ce brief avait donc raison sur
+> le *principe* du gating ; il a été à tort déclaré erroné le 31/07, et la clause rétablie le
+> 16/08. Voir CLAUDE.md, « Permission diffusion établissement », sous-section « portée
+> étendue ».
+>
+> **La forme finale de la règle diffère quand même du §2**, sur deux points :
+> - elle intègre aussi la **décision (b)** (vérification de `uniteId in unitesAcces` pour les
+>   portées individuelle et groupe), absente de la proposition d'origine ;
+> - elle est extraite dans une fonction `peutCreer(data)` avec un `let`, pour garantir **un
+>   seul `get()`** — même raisonnement que `accesLecture()`. Les deux portées se vérifient
+>   par un ternaire, pas par un `||` : la branche établissement n'est plus un laissez-passer,
+>   elle porte maintenant sa propre condition.
+>
+> **Conséquences sur le reste du brief :**
+> - §7 scénario 2 — « `pro.test` publie pour l'établissement » → **refusée**. Ce scénario a
+>   été validé en « réussit » le 31/07 ; il s'inverse. Changement de comportement voulu, pas
+>   une régression.
+> - §8 — la ligne « gating `peutDiffuserEtablissement` fonctionnel » **s'applique** de
+>   nouveau.
+> - Le chip « Établissement » est **grisé** dans le fil d'actu quand la permission manque,
+>   comme pour les documents et les messages (`restrictionEtablissementActive` du
+>   `VisibiliteSelector`, aucun composant nouveau).
+>
+> **Pourquoi le revirement :** le motif d'origine — le fil d'actu est du contenu de
+> valorisation institutionnelle, moins sensible qu'un document — n'a pas résisté à
+> l'ouverture des photos (étape 2). Une photo diffusée à toutes les familles de
+> l'établissement est au moins aussi sensible qu'un document. Attention : cette restriction
+> contrôle *qui* publie, pas *ce que la photo montre* — le point bloquant de l'étape 2 sur le
+> consentement image des publications d'établissement **reste ouvert**.
 
 ---
 

@@ -78,7 +78,7 @@ aujourd'hui. `journal_de_vie` relève de la même question. Non tranché.
 - Convention de nommage des champs Firestore : camelCase (ex. `unitesAcces`, `dateCreation`, `consentImage`)
 - **Vocabulaire affiché ≠ noms de champs.** Le type de portée intermédiaire s'appelle `groupe` en base (`VisibiliteType.groupe`, `consentImage.groupe`, `portee: "groupe"`) mais **s'affiche toujours « Unité »** dans l'interface — chips de sélection, tuiles d'agenda, en-têtes de message, badges de consentement, FAQ, et jusqu'aux titres des écrans de recueil du consentement. Un pro ne pense pas « groupe », il pense « l'unité Polyvalence ». Ne jamais laisser un nom de champ remonter jusqu'à l'écran, et ne pas renommer le champ pour autant : le schéma est stable, c'est la couche d'affichage qui traduit.
 - Les professionnels ont une liste `unitesAcces` (unités auxquelles ils ont accès) ; toute liste d'usagers affichée à un pro est filtrée par ses `unitesAcces`
-- Les professionnels ont aussi un champ booléen `peutDiffuserEtablissement` (faux par défaut) qui autorise ou non l'envoi de documents/messages en portée « établissement » — distinct du consentement image, et distinct des publications établissement du fil d'actu qui restent ouvertes à tous les pros sans restriction. Positionné manuellement en base pour le MVP, pas d'interface de gestion. **Non commencé** — voir section « Permission diffusion établissement » plus bas.
+- Les professionnels ont aussi un champ booléen `peutDiffuserEtablissement` (faux par défaut) qui autorise ou non la diffusion en portée « établissement » sur **trois** surfaces : documents, messages, et — **depuis le 2026-08-16** — les publications du fil d'actu. Distinct du consentement image. Positionné manuellement en base pour le MVP, pas d'interface de gestion. Voir section « Permission diffusion établissement » plus bas, sous-section « portée étendue » : la décision d'origine, qui laissait le fil d'actu ouvert à tous les pros, a été **inversée**.
 - Second booléen de permission sur `users/{uid}` : `peutModerer` (faux par défaut), qui autorise le masquage d'une publication ou d'un commentaire **dont on n'est pas l'auteur**. Motif : aujourd'hui seul l'auteur peut masquer sa publication — si l'auteur est absent, parti de l'établissement, ou s'il est lui-même le problème, il n'existe aucun recours pour retirer une photo publiée par erreur. Inacceptable sur une plateforme diffusant des images d'enfants en situation de handicap, et bloquant pour l'autorisation du pilote. **Volontairement un booléen, pas un troisième rôle** : un rôle `admin` obligerait chaque règle, chaque requête et chaque écran à gérer un cas de plus, là où un booléen ajoute une clause `OR`. Aucun nouveau chemin de lecture n'est nécessaire (le compte de Séb couvre déjà les 3 unités via `unitesAcces`) : `peutModerer` n'affecte que les règles d'écriture et l'affichage du menu « ⋮ ». `peutModerer` et `peutDiffuserEtablissement` sont **indépendants** — ne jamais les coupler, ni dans le seed, ni dans les règles. À positionner sur au moins deux comptes dès qu'un second compte de coordination existera (un unique modérateur en congé laisse l'établissement sans recours). La mécanique de modération elle-même appartient au chantier Publications (commentaires étape 4, publications étape 6) ; tout masquage reste un soft delete tracé (`masqueePar`, `motifMasquage`), y compris par un modérateur, et l'auteur doit voir que sa publication a été masquée et par qui.
 - Création de compte par code d'invitation (collection `codes_invitation` : `role`, `usagerId` ou `unitesAcces` selon le rôle, `etablissementId`, `utilise`, `dateCreation`, `dateExpiration` [toujours `null` au MVP, pas de vérification d'expiration], `creePar`). Rôle famille ou pro rattaché à la collection unique `users` (pas de collections séparées par rôle). Codes créés à la main dans la console Firestore au MVP, un code par usager/famille, distribué manuellement par Séb — pas d'écran de génération (reporté à Relio Admin, Phase 2). Le script de seed Node.js (`tools/seed/`) existe réellement depuis R1 mais couvre **uniquement le référentiel** (`etablissements`/`unites`/`usagers`), pas les codes d'invitation
 - Chaque usager porte un champ `consentImage` (booléens `individuelle`/`groupe`/`etablissement`, faux par défaut, jamais présumé) qui autorise ou non l'apparition visible de sa photo par type de publication — voir « Consentement image » ci-dessous
@@ -167,7 +167,14 @@ Ce qui a été fait en R1 :
 
 ### Publications — étape 1 close (2026-07-31)
 
-Brief : `docs/briefs/brief-publications-etape1.md` (⚠️ son §2/§7.2/§8 sont erronés sur `peutDiffuserEtablissement`, encadré de correction en tête du fichier). Scénarios passés : création des 3 portées, `cibles` vérifiée en console, modification, masquage, périmètre restreint de `pro.test`, publication établissement par un pro sans permission, feed famille fratrie filtré, absence constatée d'une publication hors périmètre.
+Brief : `docs/briefs/brief-publications-etape1.md` (son encadré de tête a été **remis à jour le 2026-08-16** pour refléter le rétablissement de la clause `peutDiffuserEtablissement` — voir « portée étendue »). Scénarios passés : création des 3 portées, `cibles` vérifiée en console, modification, masquage, périmètre restreint de `pro.test`, publication établissement par un pro sans permission, feed famille fratrie filtré, absence constatée d'une publication hors périmètre.
+
+> **⚠️ Un scénario de cette liste s'est inversé le 2026-08-16.** « Publication établissement
+> par un pro sans permission » a été validé le 31/07 avec le résultat « **réussit** ». Depuis
+> l'extension de `peutDiffuserEtablissement`, le résultat attendu est « **refusée** » (chip
+> grisé côté interface, `permission-denied` côté règle). **Ce n'est pas une régression, c'est
+> un changement de comportement voulu** — ne pas le relire plus tard comme un défaut, et ne
+> pas « corriger » la règle pour retrouver l'ancien résultat.
 
 - **Champ `cibles`** (`array<string>`) : le champ technique qui permet aux feeds pro et famille d'utiliser **la même requête et le même index** malgré des périmètres de nature différente. Individuelle → `[usagerId, uniteId]` ; groupe → `[...usagersPresents, uniteId]` ; établissement → `[etablissementId]`. Dérivable de `usagersConcernes`/`uniteId`/`typePublication`, calculé à la création, **jamais modifié ensuite**. `usagersConcernes` reste le champ *sémantique* (il alimentera le Journal de vie) ; ne pas confondre les deux.
 - **La fusion `unitesAcces` + `usagersIds` + `etablissementId` dans un seul `hasAny`** n'est sûre que grâce au préfixage des ids — voir « Décisions verrouillées ».
@@ -218,6 +225,8 @@ Chaque publication : texte (max 1000 caractères), 1 à 5 photos, auteur, date, 
 
 Les publications de type `etablissement` n'ont, par construction, aucun `usagersConcernes` — donc aucun mécanisme de vérification de consentement image ne s'applique à elles, quel que soit l'auteur. Dès que l'étape 2 introduit les photos, ce point doit être tranché avant d'ouvrir l'upload sur ce type de publication : soit un mécanisme de déclaration explicite au moment de publier (ex. confirmation « aucun enfant identifiable dont la famille a refusé le consentement n'apparaît sur cette photo »), soit une restriction de contenu (publications établissement limitées à du contenu non-identifiant : décors, bâtiments, activités sans visage reconnaissable), soit la restriction d'auteur envisagée aujourd'hui (`peutDiffuserEtablissement`) combinée à une formation ciblée des coordinateurs sur ce risque précis. **Ne pas ouvrir l'étape 2 sur les publications établissement sans avoir tranché ce point.**
 
+**Mise à jour du 2026-08-16 :** la troisième branche (restriction d'auteur) est **retenue et implémentée** — `peutDiffuserEtablissement` gate désormais la publication établissement, voir « portée étendue ». Elle réduit le risque en réservant ce type de publication à des comptes formés, mais **ne referme pas le point bloquant** : elle contrôle *qui* publie, pas *ce que la photo montre*. Un coordinateur autorisé peut toujours diffuser à tout l'établissement la photo d'un enfant dont la famille a refusé le consentement « établissement ». Le volet contenu (déclaration explicite au moment de publier, et/ou affichage des refus en vigueur) reste donc à trancher avant l'upload.
+
 ## Consentement image (usagers)
 
 Les familles autorisent ou refusent la diffusion de la photo de leur enfant, **par type de publication** (individuelle / groupe / établissement), sans que ce choix ne conditionne jamais l'accès au service (RGPD art. 7§4 — non-conditionnement).
@@ -265,8 +274,34 @@ Pour la session 1 : données factices (mock) acceptables, la connexion Firestore
 
 - Catalogue mock des pros créé (`MockPro`/`mockProsCatalogue` dans `mock_data.dart`) : champ `peutDiffuserEtablissement` (bool, `false` par défaut). Deux comptes coordination/direction l'ont à `true`. Positionné manuellement pour le MVP (pas d'interface de gestion avant Relio Admin, Phase 2) — restera vrai également une fois Firestore branché.
 - Chip « Établissement » grisé (désactivé au tap) dans EnvoyerDocumentPage et l'écran message quand le pro connecté a `peutDiffuserEtablissement` à `false`, via le nouveau paramètre `restrictionEtablissementActive` de `VisibiliteSelector` (`false`/absent pour l'agenda et le fil d'actu, comportement inchangé là-bas). Pas de texte d'explication sous le chip — testé puis retiré à la demande de Séb, le grisé seul suffit.
-- Publication établissement (fil d'actu) reste ouverte à tous les pros, sans restriction — décision volontaire (contenu de valorisation institutionnelle, moins sensible qu'une information factuelle type document/message), à réévaluer seulement si abus constaté en usage réel.
+- ~~Publication établissement (fil d'actu) reste ouverte à tous les pros, sans restriction.~~ **Décision inversée le 2026-08-16** — voir « portée étendue » ci-dessous. Le motif d'origine (contenu de valorisation institutionnelle, moins sensible qu'un document ou un message) n'a pas résisté à l'ouverture des photos : une photo diffusée à toutes les familles de l'établissement est au moins aussi sensible qu'un document.
 - **Reste à faire (Item 4, repositionné après la Phase 1 du chantier Back)** : champ réel `peutDiffuserEtablissement` sur `users/{uid}` en base Firestore + la security rule associée (voir Architecture des données, Chantier Back et Contraintes et vigilance) — invérifiable avant que la collection `users/{uid}` réelle existe (Phase 1), donc à ne pas écrire avant.
+
+### `peutDiffuserEtablissement` — portée étendue (2026-08-16)
+
+`peutDiffuserEtablissement` gate désormais **deux surfaces, pas une seule** :
+
+- Documents diffusés (existant — le chip grisé couvre en réalité **documents et messages**, voir la puce ci-dessus ; côté règles Firestore, aucune des deux collections n'est encore écrite)
+- **Publications de type établissement (nouveau)**
+
+Un seul booléen, **pas de rôle dédié** coordination/direction/admin. Individuelle et groupe restent
+gérées par `unitesAcces` seul, aucune permission supplémentaire dessus.
+
+**UI** — option « Établissement » grisée / non cliquable dans le sélecteur de type de
+`CreatePublicationPage` si `peutDiffuserEtablissement != true`, même traitement visuel que les
+autres restrictions déjà en place dans l'app (paramètre `restrictionEtablissementActive` de
+`VisibiliteSelector`, aucun composant nouveau).
+
+**Firestore rules** — refus en écriture de toute publication `typePublication == "etablissement"`
+si le compte pro auteur n'a pas `peutDiffuserEtablissement == true`. **Étendre la règle existante**
+sur la collection `publications`, ne pas en créer une seconde en parallèle.
+
+Aucun changement de modèle de données. **Aucune gestion rétroactive** si le booléen change après
+coup — les publications déjà créées restent inchangées.
+
+**Ce que cette extension ne règle pas** : elle restreint *qui* publie, pas *ce que la photo
+contient*. Le point bloquant de l'étape 2 sur le consentement image des publications
+d'établissement (voir « Logique métier ») reste donc ouvert.
 
 ## Contraintes et vigilance
 

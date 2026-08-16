@@ -207,6 +207,15 @@ class _CreatePublicationScreenState extends State<CreatePublicationScreen> {
                                     unites: perimetre.unites,
                                     onChanged: (value) => setState(() => _visibilite = value),
                                     showConsentBadge: true,
+                                    // Depuis le 2026-08-16, publier pour tout
+                                    // l'établissement exige
+                                    // `peutDiffuserEtablissement`, comme un
+                                    // document ou un message. Le chip grisé
+                                    // double la règle Firestore `peutCreer()` :
+                                    // sans lui, le pro composerait toute sa
+                                    // publication avant de se voir refuser
+                                    // l'envoi.
+                                    restrictionEtablissementActive: true,
                                   ),
                                 ),
                               const SizedBox(height: 20),

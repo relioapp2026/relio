@@ -169,11 +169,13 @@ class PublicationService {
   /// [FirebaseException] (`permission-denied` si la règle refuse — unité hors
   /// `unitesAcces`).
   ///
-  /// **Une portée établissement n'est jamais refusée pour cause de
-  /// permission** : le fil d'actu est ouvert à tous les pros.
-  /// `peutDiffuserEtablissement` ne concerne que les documents et les
-  /// messages — voir CLAUDE.md, section « Permission diffusion
-  /// établissement ».
+  /// **Une portée établissement exige `peutDiffuserEtablissement` sur le
+  /// compte pro** — depuis le 2026-08-16, la permission gate le fil d'actu
+  /// comme elle gate déjà les documents et les messages. La règle
+  /// `peutCreer()` refuse la création sinon (`permission-denied`) ; côté
+  /// interface, le chip « Établissement » est grisé en amont. Voir
+  /// CLAUDE.md, section « Permission diffusion établissement », sous-section
+  /// « portée étendue ».
   Future<String> creer({
     required VisibiliteType type,
     required List<String> usagersConcernesIds,

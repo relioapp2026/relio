@@ -83,9 +83,12 @@ class VisibiliteSelector extends StatefulWidget {
 
   /// Si `true`, grise le chip "Établissement" (désactivé au tap) quand le
   /// pro connecté n'a pas `peutDiffuserEtablissement` — voir CLAUDE.md,
-  /// section « Permission diffusion établissement ». Pertinent uniquement
-  /// pour Document/Message : l'agenda et le fil d'actu (publications)
-  /// restent ouverts à tous les pros, donc ce paramètre y reste à `false`.
+  /// section « Permission diffusion établissement ».
+  ///
+  /// À `true` pour Document, Message **et — depuis le 2026-08-16 —
+  /// Publication** : la permission gate désormais trois surfaces. Reste à
+  /// `false` pour l'agenda seul, dont la portée établissement n'est soumise
+  /// à aucune restriction d'auteur.
   final bool restrictionEtablissementActive;
 
   /// Message affiché dans le sous-bloc « Usager concerné » quand [usagers] est
