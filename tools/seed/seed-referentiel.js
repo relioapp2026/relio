@@ -35,6 +35,27 @@ const PROJET_AUTORISE = 'relio-dev';
 const CHEMIN_DONNEES = path.join(__dirname, 'data', 'referentiel.json');
 const CHEMIN_CLE_PAR_DEFAUT = path.join(os.homedir(), '.relio', 'relio-dev-sa.json');
 
+/**
+ * `--forcer-consentement` : repose les `consentImage` des usagers qui en
+ * portent un dans le JSON, même si leur document existe déjà.
+ *
+ * Sans ce drapeau, `consentImage` ne s'écrit qu'à la création du document et
+ * n'est jamais réécrit (voir semer()) — protection indispensable, sans quoi un
+ * rejeu effacerait les consentements saisis par les familles.
+ *
+ * Cette option existe pour un seul usage : réinstaller les six cas de test
+ * différenciés sur une base où les 55 usagers ont déjà été semés. Elle NE
+ * touche QUE les usagers porteurs d'une fixture explicite dans
+ * `referentiel.json` — les autres gardent leur consentement quoi qu'il arrive.
+ * C'est la distinction qui empêche l'option de recréer le défaut qu'elle
+ * contourne : « forcer » ne veut pas dire « tout remettre aux valeurs par
+ * défaut ».
+ *
+ * Le garde-fou anti-production reste entier : ce drapeau ne change rien à la
+ * cible, qui doit toujours être `relio-dev`.
+ */
+const FORCER_CONSENTEMENT = process.argv.includes('--forcer-consentement');
+
 // --- Sortie ---------------------------------------------------------------
 
 const titre = (t) => console.log(`\n\x1b[1m${t}\x1b[0m`);
@@ -212,7 +233,35 @@ function documentUnite(unite) {
   };
 }
 
+/**
+ * Un usager peut surcharger `consentImage` pour servir de cas de test.
+ *
+ * Chantier R3b — six usagers portent un consentement volontairement
+ * différencié (tout accepté / tout refusé / mixte / jamais répondu), qui
+ * couvre les trois états du badge. Ils vivaient auparavant dans
+ * `mockUsagersCatalogue`, et y portaient un vrai uid Firebase dans
+ * `saisiPar` ; le JSON étant versionné, `saisiPar` y reste TOUJOURS `null`.
+ *
+ * `dateConsentement` s'exprime en nombre de jours **relatif à aujourd'hui**
+ * (`dateConsentementJoursAvant`), jamais en date calendaire : une date figée
+ * vieillirait dans le dépôt et finirait par décrire un consentement recueilli
+ * « il y a trois ans ». Même convention que les dates relatives du mock.
+ */
 function documentUsager(usager, defauts) {
+  const surcharge = usager.consentImage;
+  let consentImage = { ...defauts.consentImage };
+
+  if (surcharge) {
+    const { dateConsentementJoursAvant, ...reste } = surcharge;
+    consentImage = { ...consentImage, ...reste, saisiPar: null };
+
+    if (typeof dateConsentementJoursAvant === 'number') {
+      const d = new Date();
+      d.setDate(d.getDate() - dateConsentementJoursAvant);
+      consentImage.dateConsentement = admin.firestore.Timestamp.fromDate(d);
+    }
+  }
+
   return {
     prenom: usager.prenom,
     nom: usager.nom,
@@ -221,7 +270,7 @@ function documentUsager(usager, defauts) {
     anneeNaissance: usager.anneeNaissance,
     photoUrl: defauts.photoUrl,
     actif: defauts.actif,
-    consentImage: { ...defauts.consentImage },
+    consentImage,
   };
 }
 
@@ -244,7 +293,28 @@ function dejaAJour(existant, charge) {
 
 // --- Écriture -------------------------------------------------------------
 
-async function semer(firestore, nomCollection, entrees, construireDocument) {
+/**
+ * [champsCreationSeule] : champs posés à la création du document et **jamais
+ * réécrits ensuite**, sur le modèle de `dateCreation`.
+ *
+ * Chantier R3b — c'est `consentImage` qui l'impose, et le motif n'est pas
+ * l'esthétique. Depuis R3b, une famille écrit réellement ce champ depuis
+ * l'app. Or ce script est rejoué à chaque rentrée pour resynchroniser
+ * l'effectif : sans cette protection, un rejeu réécrirait `consentImage` avec
+ * la valeur du JSON et **effacerait les consentements donnés par les
+ * familles** — remise à `false` des 49 usagers sans cas de test, et écrasement
+ * des 6 autres. Une donnée que seule la famille peut produire ne doit jamais
+ * être réécrite par un outil d'administration.
+ *
+ * Effet de bord utile : l'idempotence est préservée. `dateConsentement` étant
+ * relative à la date d'exécution, l'inclure dans la comparaison ferait
+ * signaler six modifications à chaque rejeu.
+ *
+ * C'est une **fonction** de l'entrée, et non une liste fixe : la protection
+ * peut se lever pour certains usagers et pas pour d'autres (voir
+ * `--forcer-consentement`).
+ */
+async function semer(firestore, nomCollection, entrees, construireDocument, champsCreationSeule = () => []) {
   const collection = firestore.collection(nomCollection);
 
   // Une seule lecture par collection plutôt qu'un get() par document : moins
@@ -258,18 +328,23 @@ async function semer(firestore, nomCollection, entrees, construireDocument) {
   let operations = 0;
 
   for (const entree of entrees) {
-    const charge = construireDocument(entree);
+    const chargeComplete = construireDocument(entree);
     const existant = existants.get(entree.id);
 
     if (!existant) {
       batch.set(collection.doc(entree.id), {
-        ...charge,
+        ...chargeComplete,
         dateCreation: admin.firestore.FieldValue.serverTimestamp(),
       });
       operations += 1;
       bilan.crees += 1;
       continue;
     }
+
+    // Document déjà en base : on écarte les champs qui ne se posent qu'à la
+    // création, pour ne jamais écraser ce que l'app y a écrit depuis.
+    const charge = { ...chargeComplete };
+    for (const champ of champsCreationSeule(entree)) delete charge[champ];
 
     if (dejaAJour(existant, charge)) {
       bilan.inchanges += 1;
@@ -353,6 +428,17 @@ async function principal() {
   validerDonnees(data);
   succes('referentiel.json validé');
 
+  if (FORCER_CONSENTEMENT) {
+    const cibles = data.usagers.filter((u) => u.consentImage).map((u) => u.id);
+    alerte(
+      `--forcer-consentement : ${cibles.length} usager(s) verront leur consentImage RÉÉCRIT ` +
+        `(${cibles.join(', ')}).`,
+    );
+    alerte(
+      'Les autres usagers conservent le leur. À n\'utiliser que pour réinstaller les cas de test.',
+    );
+  }
+
   admin.initializeApp({ credential: admin.credential.cert(cle) });
   const firestore = admin.firestore();
 
@@ -372,6 +458,13 @@ async function principal() {
       'usagers',
       data.usagers,
       (usager) => documentUsager(usager, data.defautsUsager),
+      // Par défaut, `consentImage` n'est jamais réécrit sur un document
+      // existant. `--forcer-consentement` lève cette protection pour les SEULS
+      // usagers porteurs d'une fixture explicite dans le JSON : les autres
+      // conservent leur consentement dans tous les cas, y compris avec le
+      // drapeau. Voir FORCER_CONSENTEMENT.
+      (usager) =>
+        FORCER_CONSENTEMENT && usager.consentImage ? [] : ['consentImage'],
     ),
   };
 

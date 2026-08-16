@@ -1,5 +1,31 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import 'visibilite_type.dart';
+
+/// État du consentement image pour un type de publication donné.
+///
+/// Chantier R3b — **trois états, pas deux.** Jusqu'ici l'app fusionnait
+/// « refusé explicitement » et « jamais répondu » sous une même alerte orange,
+/// point signalé comme ouvert dans CLAUDE.md et tranché ici : c'est
+/// [ConsentImage.dateConsentement] qui les sépare. Tant qu'il est `null`,
+/// aucune famille n'a rien validé — dire « refusé » serait prêter à un parent
+/// un choix qu'il n'a jamais exprimé.
+///
+/// La distinction compte pour le pro : un refus explicite se respecte, une
+/// absence de réponse se relance.
+enum EtatConsentImage {
+  /// Aucun choix validé à ce jour ([ConsentImage.dateConsentement] est `null`).
+  /// Opt-in strict : traité comme un refus côté diffusion, jamais présenté
+  /// comme tel côté affichage.
+  nonRenseigne,
+
+  /// La famille a explicitement autorisé ce type de publication.
+  autorise,
+
+  /// La famille a explicitement refusé ce type de publication.
+  refuse,
+}
+
 /// Modèle correspondant au champ Firestore `usagers/{usagerId}.consentImage`
 /// (voir CLAUDE.md, section « Consentement image (usagers) »). Aucune
 /// présomption de consentement : les trois booléens valent `false` tant que
@@ -50,4 +76,57 @@ class ConsentImage {
       saisiPar: data['saisiPar'] as String?,
     );
   }
+
+  /// Vrai si aucun choix n'a jamais été validé par la famille.
+  bool get estNonRenseigne => dateConsentement == null;
+
+  /// État affichable pour [type] — voir [EtatConsentImage].
+  ///
+  /// `etablissement` n'a plus aucune représentation visuelle depuis R3b : le
+  /// champ reste dans le schéma (pas de migration) mais n'est ni affiché, ni
+  /// modifiable. Ce chemin n'est jamais emprunté en pratique — il n'existe
+  /// aucune sélection d'usager sur une publication d'établissement, donc
+  /// aucun badge à calculer.
+  EtatConsentImage etatPour(VisibiliteType type) {
+    if (estNonRenseigne) return EtatConsentImage.nonRenseigne;
+    final accorde = switch (type) {
+      VisibiliteType.individuelle => individuelle,
+      VisibiliteType.groupe => groupe,
+      VisibiliteType.etablissement => etablissement,
+    };
+    return accorde ? EtatConsentImage.autorise : EtatConsentImage.refuse;
+  }
+
+  /// Map destinée au champ `consentImage` d'un document `usagers`.
+  ///
+  /// Chantier R3b — **le seul `toFirestore` du référentiel**, et il n'écrit
+  /// qu'un champ. R2 avait posé « aucun `toFirestore` : le référentiel ne
+  /// s'écrit pas depuis le client » ; R3b ouvre cette exception unique, bornée
+  /// par la règle `consentImageValide()` de `firestore.rules`.
+  ///
+  /// Trois points qui doivent rester alignés avec cette règle, sous peine de
+  /// `permission-denied` :
+  /// - [etablissement] est **recopié tel quel**, jamais recalculé : la règle
+  ///   vérifie qu'il n'a pas bougé.
+  /// - `dateConsentement` part en `FieldValue.serverTimestamp()` — la règle
+  ///   exige un timestamp, et l'horloge d'un téléphone peut être fausse alors
+  ///   que ce champ sert de preuve d'un geste actif en cas de contestation.
+  /// - `saisiPar` doit valoir l'uid de l'appelant.
+  Map<String, dynamic> toFirestore({required String saisiParUid}) => {
+        'individuelle': individuelle,
+        'groupe': groupe,
+        'etablissement': etablissement,
+        'dateConsentement': FieldValue.serverTimestamp(),
+        'versionTexte': versionTexte ?? 'v1',
+        'saisiPar': saisiParUid,
+      };
+
+  ConsentImage copyWith({bool? individuelle, bool? groupe}) => ConsentImage(
+        individuelle: individuelle ?? this.individuelle,
+        groupe: groupe ?? this.groupe,
+        etablissement: etablissement,
+        dateConsentement: dateConsentement,
+        versionTexte: versionTexte,
+        saisiPar: saisiPar,
+      );
 }

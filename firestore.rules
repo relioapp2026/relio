@@ -54,9 +54,14 @@ service cloud.firestore {
     // Référentiel (chantier Référentiel / R2) : etablissements, unites,
     // usagers.
     //
-    // ÉCRITURE CLIENTE INTERDITE PARTOUT (`allow write: if false`) : ces
-    // collections se peuplent par le script de seed (`tools/seed/`, SDK
-    // Admin, qui contourne ces règles), plus tard par Relio Admin.
+    // ÉCRITURE CLIENTE INTERDITE, à UNE exception près : ces collections se
+    // peuplent par le script de seed (`tools/seed/`, SDK Admin, qui contourne
+    // ces règles), plus tard par Relio Admin.
+    //
+    // L'exception, ouverte en R3b (2026-08-16) : une famille peut écrire le
+    // champ `consentImage` de SON usager, et rien d'autre du document. C'est
+    // le seul chemin d'écriture client du référentiel — voir le bloc
+    // `usagers` plus bas.
     //
     // Piège évité ici : sur un compte famille, `unitesAcces` n'existe pas —
     // et sur un compte pro, `usagersIds` n'existe pas (forme réelle des
@@ -99,13 +104,76 @@ service cloud.firestore {
     // par document retourné — elle ne filtre pas. Une requête ramenant un
     // seul document hors périmètre échoue en entier. C'est pour ça que
     // `ReferentielService` borne toujours ses requêtes côté client.
+    // Compte famille rattaché à l'usager visé, en UN seul get() — même
+    // pattern que `accesLecture()` et `peutCreer()` plus bas.
+    //
+    // Le test explicite du rôle est redondant en pratique (un pro n'a pas de
+    // `usagersIds`, donc la liste vide le bloquerait déjà) mais il rend la
+    // règle lisible : R3b acte que le consentement image s'écrit par la
+    // famille SEULE, jamais par un pro. Voir CLAUDE.md, « Consentement image ».
+    function familleDeLUsager(usagerId) {
+      let u = userDoc();
+      return u.get('role', '') == 'famille'
+          && usagerId in u.get('usagersIds', []);
+    }
+
+    // Validation du CONTENU de `consentImage`.
+    //
+    // Indispensable, et c'est le piège de cette règle : `affectedKeys()` ne
+    // descend PAS dans les sous-maps. `consentImage` étant un objet imbriqué,
+    // autoriser sa clé au premier niveau ne dit rien de ce qu'on met dedans —
+    // sans cette fonction, un client modifié y écrirait `etablissement: true`
+    // ou des clés inventées, en passant le `hasOnly` sans difficulté.
+    //
+    // `resource.data.get('consentImage', {})` et non `resource.data.consentImage` :
+    // un document sans le champ ferait ÉCHOUER l'évaluation (leçon de R2 sur
+    // les champs absents). Les 55 documents semés le portent, mais la règle
+    // ne doit pas en dépendre.
+    function consentImageValide() {
+      let c = request.resource.data.consentImage;
+      let ancien = resource.data.get('consentImage', {});
+      return c.keys().hasOnly(
+               ['individuelle', 'groupe', 'etablissement',
+                'dateConsentement', 'versionTexte', 'saisiPar']
+             )
+          && c.individuelle is bool
+          && c.groupe is bool
+          // Établissement hors périmètre de R3b : figé, jamais modifiable
+          // ici. Il reste dans le schéma (pas de migration) mais n'a plus
+          // aucune représentation visuelle ni chemin d'écriture. La portée
+          // établissement est traitée par `peutDiffuserEtablissement` et le
+          // texte d'alerte de l'étape 2.
+          && c.get('etablissement', false) == ancien.get('etablissement', false)
+          // Opt-in strict : une écriture prouve un geste actif de la famille.
+          // Sans horodatage obligatoire, impossible de distinguer plus tard
+          // « refusé explicitement » de « jamais répondu » — distinction sur
+          // laquelle repose tout l'affichage à trois états.
+          && c.dateConsentement is timestamp
+          // Qui a saisi n'est pas déclaratif. Pas de saisie déléguée par un
+          // pro en R3b (fallback « parent sans smartphone » écarté, voir
+          // CLAUDE.md) : l'auteur est toujours l'appelant.
+          && c.saisiPar == request.auth.uid;
+    }
+
     match /usagers/{usagerId} {
       allow read: if request.auth != null
         && (
           resource.data.uniteId in userDoc().get('unitesAcces', [])
           || usagerId in userDoc().get('usagersIds', [])
         );
-      allow write: if false;
+
+      // `allow write: if false` a été REMPLACÉ, pas complété. Les `allow`
+      // s'additionnent en OU : laisser `write: if false` à côté d'un `update`
+      // ouvert fonctionnerait, mais donnerait un fichier où deux lignes se
+      // contredisent en apparence. Décomposer dit exactement ce qui est permis.
+      allow create, delete: if false;
+
+      // Seul chemin d'écriture client du référentiel (R3b) : la famille
+      // rattachée, sur le seul champ `consentImage`.
+      allow update: if request.auth != null
+        && familleDeLUsager(usagerId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['consentImage'])
+        && consentImageValide();
     }
 
     // ---------------------------------------------------------------------

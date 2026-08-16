@@ -76,6 +76,30 @@ Le script affiche : la clé utilisée, le projet ciblé, le bilan par collection
 **Vérification d'idempotence** — relancer immédiatement `npm run seed` doit afficher
 `0 créé(s)   0 modifié(s)` sur les trois collections. Si ce n'est pas le cas, c'est un bug.
 
+### `--forcer-consentement` (cas de test uniquement)
+
+```powershell
+node tools/seed/seed-referentiel.js --forcer-consentement
+```
+
+**À quoi ça sert.** Depuis R3b, `consentImage` est écrit par les familles depuis l'app.
+Le script ne le pose donc qu'à la **création** du document et ne le réécrit plus jamais —
+sans quoi un rejeu (fait à chaque rentrée pour resynchroniser l'effectif) effacerait des
+consentements réels. Conséquence : sur une base déjà semée, les six cas de test
+différenciés du JSON ne s'installent pas.
+
+Ce drapeau lève la protection **pour les seuls usagers porteurs d'un `consentImage`
+explicite dans `referentiel.json`** — aujourd'hui `usager_001`, `002`, `003`, `017`,
+`031`, `032`. Les 49 autres conservent le leur, drapeau ou pas. C'est cette distinction
+qui empêche l'option de recréer le problème qu'elle contourne : *forcer* ne veut pas dire
+*tout remettre par défaut*.
+
+Le script annonce en clair, avant d'écrire, quels usagers seront réécrits.
+
+⚠️ **N'utilisez ce drapeau que sur des consentements fictifs.** Le jour où de vraies
+familles auront répondu, il écraserait leur choix sur ces six usagers. Le garde-fou
+anti-production reste actif : la cible doit toujours être `relio-dev`.
+
 ---
 
 ## Ce que fait le script

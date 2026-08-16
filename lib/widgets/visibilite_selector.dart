@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../models/consent_image.dart';
 import '../models/unite.dart';
 import '../models/usager_affichage.dart';
 import '../models/visibilite_type.dart';
@@ -251,8 +252,9 @@ class _VisibiliteSelectorState extends State<VisibiliteSelector> {
         // « Prénom Nom » à la sélection ferait douter d'avoir choisi
         // la bonne personne.
         name: selection.nomListe,
-        sansConsentement: widget.showConsentBadge &&
-            selection.sansAutorisationImage(VisibiliteType.individuelle),
+        etatConsent: widget.showConsentBadge
+            ? selection.etatConsentImage(VisibiliteType.individuelle)
+            : EtatConsentImage.autorise,
         onClear: () => setState(() {
           _selectedUsager = null;
           _notify();
@@ -315,11 +317,12 @@ class _VisibiliteSelectorState extends State<VisibiliteSelector> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: matches.map((usager) {
-                  final sansConsentement = widget.showConsentBadge &&
-                      usager.sansAutorisationImage(VisibiliteType.individuelle);
+                  final etat = usager.etatConsentImage(VisibiliteType.individuelle);
+                  final afficherBadge = widget.showConsentBadge &&
+                      etat != EtatConsentImage.autorise;
                   return ListTile(
                     title: Text(usager.nomListe, style: TextStyle(color: AppColors.marine)),
-                    trailing: sansConsentement ? const ConsentImageBadge() : null,
+                    trailing: afficherBadge ? ConsentImageBadge(etat: etat) : null,
                     onTap: () => setState(() {
                       _selectedUsager = usager;
                       _usagerSearchController.clear();
@@ -385,8 +388,9 @@ class _VisibiliteSelectorState extends State<VisibiliteSelector> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: usagersUnite.map((usager) {
-                final sansConsentement = widget.showConsentBadge &&
-                    usager.sansAutorisationImage(VisibiliteType.groupe);
+                final etat = usager.etatConsentImage(VisibiliteType.groupe);
+                final afficherBadge = widget.showConsentBadge &&
+                    etat != EtatConsentImage.autorise;
                 return CheckboxListTile(
                   value: _groupePresence[usager.id] ?? false,
                   onChanged: (value) => setState(() {
@@ -394,8 +398,11 @@ class _VisibiliteSelectorState extends State<VisibiliteSelector> {
                     _notify();
                   }),
                   title: Text(usager.nomListe, style: TextStyle(color: AppColors.marine)),
-                  subtitle: sansConsentement
-                      ? const Align(alignment: Alignment.centerLeft, child: ConsentImageBadge())
+                  subtitle: afficherBadge
+                      ? Align(
+                          alignment: Alignment.centerLeft,
+                          child: ConsentImageBadge(etat: etat),
+                        )
                       : null,
                   activeColor: AppColors.turquoise,
                   controlAffinity: ListTileControlAffinity.leading,
@@ -421,12 +428,14 @@ class _SelectedUsagerChip extends StatelessWidget {
   const _SelectedUsagerChip({
     required this.name,
     required this.onClear,
-    this.sansConsentement = false,
+    this.etatConsent = EtatConsentImage.autorise,
   });
 
   final String name;
   final VoidCallback onClear;
-  final bool sansConsentement;
+
+  /// `autorise` n'affiche aucun badge — voir [ConsentImageBadge].
+  final EtatConsentImage etatConsent;
 
   @override
   Widget build(BuildContext context) {
@@ -454,9 +463,9 @@ class _SelectedUsagerChip extends StatelessWidget {
                       name,
                       style: TextStyle(color: AppColors.marine, fontWeight: FontWeight.w600),
                     ),
-                    if (sansConsentement) ...[
+                    if (etatConsent != EtatConsentImage.autorise) ...[
                       const SizedBox(height: 4),
-                      const ConsentImageBadge(),
+                      ConsentImageBadge(etat: etatConsent),
                     ],
                   ],
                 ),

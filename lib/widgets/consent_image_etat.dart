@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/consent_image.dart';
+import '../models/visibilite_type.dart';
 import '../theme/app_colors.dart';
 
 /// État complet du consentement image d'un usager, par type de publication.
@@ -47,27 +48,39 @@ class ConsentImageEtat extends StatelessWidget {
   /// champ n'a pas à remonter jusqu'à l'écran — c'est le vocabulaire de
   /// l'établissement qui prime, et un pro ne pense pas « groupe », il pense
   /// « l'unité Polyvalence ».
+  ///
+  /// **Deux types, plus trois, depuis R3b.** La pastille « établissement » a
+  /// été retirée : cette portée n'est plus gouvernée par le consentement image
+  /// mais par `peutDiffuserEtablissement` (qui restreint les pros pouvant
+  /// publier) et le texte d'alerte prévu à l'étape 2. Le champ
+  /// `consentImage.etablissement` demeure dans le schéma — aucune migration —
+  /// mais n'a plus ni écran, ni écriture, ni représentation visuelle. L'afficher
+  /// en lecture seule aurait laissé croire à un réglage que plus personne ne
+  /// peut modifier.
   static const _types = [
-    ('I', 'individuelle'),
-    ('U', 'unité'),
-    ('É', 'établissement'),
+    ('I', 'individuelle', VisibiliteType.individuelle),
+    ('U', 'unité', VisibiliteType.groupe),
   ];
 
-  List<bool> get _valeurs => [
-        consent.individuelle,
-        consent.groupe,
-        consent.etablissement,
-      ];
+  List<EtatConsentImage> get _etats =>
+      [for (final (_, _, type) in _types) consent.etatPour(type)];
 
   /// Description en toutes lettres, pour les lecteurs d'écran — les pastilles
-  /// « I ✓ G ✗ É ✗ » seraient épelées lettre par lettre sans ça.
+  /// « I ✓ U ✗ » seraient épelées lettre par lettre sans ça.
   String get _descriptionAccessible {
+    final etats = _etats;
     final parties = <String>[];
     for (var i = 0; i < _types.length; i++) {
-      parties.add('${_types[i].$2} ${_valeurs[i] ? "autorisée" : "refusée"}');
+      parties.add('${_types[i].$2} ${_libelleEtat(etats[i])}');
     }
     return 'Autorisation image : ${parties.join(", ")}';
   }
+
+  static String _libelleEtat(EtatConsentImage etat) => switch (etat) {
+        EtatConsentImage.autorise => 'autorisée',
+        EtatConsentImage.refuse => 'refusée',
+        EtatConsentImage.nonRenseigne => 'non renseignée',
+      };
 
   @override
   Widget build(BuildContext context) {
@@ -79,6 +92,7 @@ class ConsentImageEtat extends StatelessWidget {
   }
 
   Widget _buildCompact() {
+    final etats = _etats;
     return Wrap(
       spacing: 4,
       runSpacing: 4,
@@ -86,12 +100,13 @@ class ConsentImageEtat extends StatelessWidget {
       children: [
         const _IconeSujet(),
         for (var i = 0; i < _types.length; i++)
-          _Pastille(libelle: _types[i].$1, accorde: _valeurs[i]),
+          _Pastille(libelle: _types[i].$1, etat: etats[i]),
       ],
     );
   }
 
   Widget _buildDetaille() {
+    final etats = _etats;
     return Wrap(
       spacing: 6,
       runSpacing: 2,
@@ -102,7 +117,7 @@ class ConsentImageEtat extends StatelessWidget {
         // où rien ne le nommait.
         const _IconeSujet(),
         for (var i = 0; i < _types.length; i++)
-          _Pastille(libelle: _types[i].$2, accorde: _valeurs[i]),
+          _Pastille(libelle: _types[i].$2, etat: etats[i]),
       ],
     );
   }
@@ -137,22 +152,30 @@ class _IconeSujet extends StatelessWidget {
 
 /// Une pastille d'état : libellé + signe, sur fond teinté.
 class _Pastille extends StatelessWidget {
-  const _Pastille({required this.libelle, required this.accorde});
+  const _Pastille({required this.libelle, required this.etat});
 
   final String libelle;
-  final bool accorde;
+  final EtatConsentImage etat;
 
   @override
   Widget build(BuildContext context) {
-    // Turquoise si l'autorisation est accordée, orange si elle ne l'est pas.
+    // Trois états, trois couples couleur/signe.
     //
-    // L'orange est **exactement celui de [ConsentImageBadge]**
+    // L'orange du refus est **exactement celui de [ConsentImageBadge]**
     // (`orange.shade800`) : un pro qui a appris à repérer cette teinte sur les
     // écrans de publication doit la reconnaître ici sans réapprentissage. Un
     // refus signalé dans une couleur différente selon l'écran se remarquerait
     // moins bien, ce qui est précisément ce qu'on ne veut pas sur une donnée
     // qui protège l'image d'un enfant.
-    final couleur = accorde ? AppColors.turquoise : Colors.orange.shade800;
+    //
+    // Le « non renseigné » porte un marine atténué et un « ? », pas un « ✗ » :
+    // une famille qui n'a pas encore répondu n'a rien refusé, et l'afficher
+    // comme un refus prêterait à un parent un choix qu'il n'a jamais exprimé.
+    final (couleur, signe) = switch (etat) {
+      EtatConsentImage.autorise => (AppColors.turquoise, '✓'),
+      EtatConsentImage.refuse => (Colors.orange.shade800, '✗'),
+      EtatConsentImage.nonRenseigne => (AppColors.marine.withValues(alpha: 0.55), '?'),
+    };
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
@@ -161,7 +184,7 @@ class _Pastille extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
-        '$libelle ${accorde ? '✓' : '✗'}',
+        '$libelle $signe',
         style: TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.w700,

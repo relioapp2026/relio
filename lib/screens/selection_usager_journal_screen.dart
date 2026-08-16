@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../models/consent_image.dart';
 import '../models/unite.dart';
 import '../models/usager_affichage.dart';
 import '../models/visibilite_type.dart';
@@ -119,9 +120,23 @@ class SelectionUsagerJournalScreen extends StatelessWidget {
   }
 
   Widget _buildLigne(BuildContext context, UsagerAffichage usager) {
-    final sansConsentement =
-        usager.sansAutorisationImage(VisibiliteType.individuelle) ||
-            usager.sansAutorisationImage(VisibiliteType.groupe);
+    // Cette liste ne cible aucun type de publication en particulier : elle
+    // sert à ouvrir le journal d'un usager. Le badge y résume donc les deux
+    // types, en affichant **le signal le plus fort** — un refus explicite
+    // prime sur une absence de réponse, qui prime sur « tout est autorisé »
+    // (aucun badge). Réduire les deux à un seul état perd du détail, mais
+    // c'est le prix d'une ligne de liste lisible ; l'état complet reste
+    // consultable via `ConsentImageEtat` (Cahier de liaison, Mes unités).
+    final etats = [
+      usager.etatConsentImage(VisibiliteType.individuelle),
+      usager.etatConsentImage(VisibiliteType.groupe),
+    ];
+    final etatBadge = etats.contains(EtatConsentImage.refuse)
+        ? EtatConsentImage.refuse
+        : etats.contains(EtatConsentImage.nonRenseigne)
+            ? EtatConsentImage.nonRenseigne
+            : EtatConsentImage.autorise;
+    final sansConsentement = etatBadge != EtatConsentImage.autorise;
 
     return InkWell(
       onTap: () => _ouvrir(context, usager),
@@ -157,7 +172,7 @@ class SelectionUsagerJournalScreen extends StatelessWidget {
                   ),
                   if (sansConsentement) ...[
                     const SizedBox(height: 4),
-                    const ConsentImageBadge(),
+                    ConsentImageBadge(etat: etatBadge),
                   ],
                 ],
               ),

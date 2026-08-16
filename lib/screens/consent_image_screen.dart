@@ -1,25 +1,37 @@
 import 'package:flutter/material.dart';
 
 import '../data/mock_data.dart';
-import '../models/consent_image.dart';
 import '../theme/app_colors.dart';
 import '../utils/fade_route.dart';
 import '../widgets/app_logo_header.dart';
 import '../widgets/auth_background.dart';
-import '../widgets/consent_toggle_card.dart';
 import '../widgets/relio_footer.dart';
 import 'feed_famille_screen.dart';
 
-/// Écran de recueil du consentement à l'image, affiché juste après la
-/// création de compte famille par code d'invitation, avant l'accès au reste
-/// de l'app — voir CLAUDE.md, section « Consentement image (usagers) », et
-/// `docs/brief-technique-consentement-image-invitations.md` (texte v1).
+/// Écran d'information sur le consentement à l'image, affiché juste après la
+/// création de compte famille par code d'invitation — voir CLAUDE.md, section
+/// « Consentement image (usagers) ».
 ///
-/// Trois toggles décochés par défaut : un refus n'empêche jamais d'utiliser
-/// Relio, il informe seulement les pros (badge) qu'il ne faut pas rendre
-/// [usagerId] visible sur une photo. Au clic sur "Valider mes choix",
-/// l'état est écrit dans le mock (`mockUsagersCatalogue`), pas encore dans
-/// Firestore.
+/// ## ⚠ NEUTRALISÉ en R3b (2026-08-16) — cet écran n'écrit plus rien
+///
+/// Il présentait trois toggles et écrivait dans `mockUsagersCatalogue`, donc
+/// **nulle part** : R2 avait posé `allow write: if false` sur `usagers`. Tant
+/// que rien n'était persisté nulle part, l'incohérence restait invisible.
+///
+/// R3b ouvre un vrai chemin d'écriture, mais sur un **seul** écran :
+/// `ConfidentialiteRGPDScreen` (Paramètres). Laisser des toggles ici les
+/// rendrait mensongers — un parent validerait ses choix à l'inscription, rien
+/// ne serait enregistré, et il les découvrirait tous à zéro dans ses
+/// paramètres. Un formulaire qui fait semblant d'enregistrer est pire que pas
+/// de formulaire du tout, a fortiori sur un consentement RGPD.
+///
+/// L'écran conserve donc son rôle d'**information** — il explique ce que Relio
+/// fera des photos et rassure sur le non-conditionnement (RGPD art. 7§4) — et
+/// renvoie vers l'endroit où le choix se règle vraiment.
+///
+/// **Migration reportée en amélioration future**, à reprendre au moment de
+/// l'étape 2 (photos) si l'onboarding le justifie : recueillir le consentement
+/// dès l'inscription n'a de valeur que le jour où des photos circulent.
 class ConsentImageScreen extends StatefulWidget {
   const ConsentImageScreen({super.key, required this.usagerId});
 
@@ -30,34 +42,10 @@ class ConsentImageScreen extends StatefulWidget {
 }
 
 class _ConsentImageScreenState extends State<ConsentImageScreen> {
-  bool _individuelle = false;
-  bool _groupe = false;
-  bool _etablissement = false;
-
   MockUsager get _usager =>
       mockUsagersCatalogue.firstWhere((u) => u.id == widget.usagerId);
 
-  void _handleValider() {
-    final index = mockUsagersCatalogue.indexWhere((u) => u.id == widget.usagerId);
-    if (index != -1) {
-      mockUsagersCatalogue[index] = mockUsagersCatalogue[index].copyWith(
-        consentImage: ConsentImage(
-          individuelle: _individuelle,
-          groupe: _groupe,
-          etablissement: _etablissement,
-          dateConsentement: DateTime.now(),
-          versionTexte: 'v1',
-          // Placeholder en attendant Firebase Auth : uid de la famille
-          // connectée, convention déjà utilisée ailleurs dans les mocks
-          // (voir mockFamilleConnecteeUid).
-          saisiPar: mockFamilleConnecteeUid,
-        ),
-      );
-    }
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Vos choix ont été enregistrés.')),
-    );
+  void _handleContinuer() {
     Navigator.of(context).pushReplacement(fadeRoute(const FeedFamilleScreen()));
   }
 
@@ -125,39 +113,52 @@ class _ConsentImageScreenState extends State<ConsentImageScreen> {
                         ],
                       ),
                       const SizedBox(height: 20),
-                      ConsentToggleCard(
-                        titre: 'Publications individuelles',
-                        description:
-                            'Photo de $prenom visible uniquement par vous, dans une '
-                            'publication qui le/la concerne personnellement.',
-                        value: _individuelle,
-                        onChanged: (v) => setState(() => _individuelle = v),
-                      ),
-                      const SizedBox(height: 12),
-                      ConsentToggleCard(
-                        // « Unité » et non « groupe » : c'est le mot employé
-                        // partout ailleurs dans l'app (chips de sélection,
-                        // agenda, messages) et celui de l'établissement. Le
-                        // champ Firestore reste `groupe` — voir CLAUDE.md.
-                        // La description, elle, est inchangée : elle disait
-                        // déjà « activité de son unité », donc la portée du
-                        // consentement recueilli ne bouge pas.
-                        titre: 'Publications d\'unité',
-                        description:
-                            'Photo de $prenom visible par les familles des enfants '
-                            'présents lors d\'une activité de son unité.',
-                        value: _groupe,
-                        onChanged: (v) => setState(() => _groupe = v),
-                      ),
-                      const SizedBox(height: 12),
-                      ConsentToggleCard(
-                        titre: 'Publications établissement',
-                        description:
-                            'Photo de $prenom visible par toutes les familles de '
-                            'l\'établissement, lors d\'un événement ou d\'un temps fort '
-                            'de la vie institutionnelle.',
-                        value: _etablissement,
-                        onChanged: (v) => setState(() => _etablissement = v),
+                      // Encart de renvoi : cet écran informe, il n'enregistre
+                      // rien (voir la note de neutralisation en tête de
+                      // fichier). Le choix se règle dans les paramètres.
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: AppColors.turquoise.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: AppColors.turquoise.withValues(alpha: 0.35),
+                            width: 1.2,
+                          ),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(Icons.settings_outlined, size: 18, color: AppColors.turquoise),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Vous réglerez vos autorisations dans vos paramètres',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w800,
+                                      color: AppColors.marine,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Rendez-vous dans Profil > Paramètres > Confidentialité '
+                                    'et RGPD. Par défaut, aucune photo de $prenom n\'est '
+                                    'partagée tant que vous n\'avez rien autorisé.',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: AppColors.marine.withValues(alpha: 0.7),
+                                      height: 1.4,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                       const SizedBox(height: 14),
                       Row(
@@ -167,7 +168,7 @@ class _ConsentImageScreenState extends State<ConsentImageScreen> {
                           const SizedBox(width: 6),
                           Expanded(
                             child: Text(
-                              'Si vous ne cochez pas une case, les professionnels pourront '
+                              'Si vous n\'autorisez rien, les professionnels pourront '
                               'tout de même partager des photos des activités de $prenom '
                               'sans qu\'il/elle y apparaisse.',
                               style: TextStyle(
@@ -181,11 +182,11 @@ class _ConsentImageScreenState extends State<ConsentImageScreen> {
                       ),
                       const SizedBox(height: 20),
                       ElevatedButton(
-                        onPressed: _handleValider,
+                        onPressed: _handleContinuer,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.turquoise,
                         ),
-                        child: const Text('Valider mes choix'),
+                        child: const Text('Continuer'),
                       ),
                     ],
                   ),

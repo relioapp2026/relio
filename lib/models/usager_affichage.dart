@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../data/mock_data.dart';
 import '../utils/avatar_color.dart';
 import 'consent_image.dart';
 import 'usager.dart';
@@ -16,31 +15,28 @@ import 'visibilite_type.dart';
 ///
 /// 1. **Identité** ([Usager], depuis Firestore) — prénom, nom, unité, année de
 ///    naissance, photo, actif.
-/// 2. **Consentement image** (depuis `mockUsagersCatalogue`) — voir le pont
-///    temporaire ci-dessous.
+/// 2. **Consentement image** ([Usager.consentImage], depuis Firestore
+///    également depuis R3b — voir ci-dessous).
 /// 3. **Couleur d'avatar** ([avatarColorPourUsager]) — dérivée de l'id, parce
 ///    que le schéma Firestore n'en porte pas.
 ///
 /// ---
-/// ## ⚠ PONT TEMPORAIRE — péremption prévue : R3b
+/// ## Pont temporaire n°1 — LEVÉ en R3b (2026-08-16)
 ///
-/// **Le consentement image est lu depuis le mock, pas depuis Firestore, et
-/// c'est délibéré.** R2 a posé `allow write: if false` sur la collection
-/// `usagers` : il n'existe aujourd'hui aucun chemin d'écriture client pour le
-/// consentement, donc les 55 documents semés portent `consentImage` à `false`
-/// partout.
+/// Le consentement image se lisait jusqu'ici depuis `mockUsagersCatalogue`,
+/// faute de chemin d'écriture client : R2 avait posé `allow write: if false`
+/// sur `usagers`, donc les 55 documents semés portaient `consentImage` à
+/// `false` partout, et lire Firestore aurait affiché « aucun consentement »
+/// sur les six usagers à état différencié — une régression silencieuse.
 ///
-/// Lire ce champ depuis Firestore afficherait « aucun consentement » sur les
-/// six usagers dont le mock porte un état volontairement différencié
-/// (`usager_001`, `002`, `003`, `017`, `031`, `032`), et casserait
-/// silencieusement le test du badge d'alerte — **sans qu'aucune erreur ne se
-/// déclenche**. Une régression invisible est pire qu'une panne franche.
+/// R3b a ouvert ce chemin (règle Firestore ciblée sur le seul champ
+/// `consentImage`, écriture réservée à la famille rattachée) et reposé les six
+/// cas de test dans `referentiel.json`. La source est donc désormais Firestore,
+/// et **aucun écran n'a eu à être touché** — c'était l'objet de ce point de
+/// composition.
 ///
-/// **R3b** ouvrira un chemin d'écriture (probablement une Cloud Function, pour
-/// préserver `allow write: if false` sur le reste du document). Ce jour-là,
-/// c'est [consentImage] ci-dessous — et lui seul — qui change de source :
-/// remplacer l'appel à `findUsagerById` par `_usager.consentImage`. Aucun
-/// écran n'a à être touché.
+/// Reste le pont n°2 (lien usager → comptes famille, `mockFamilles`), levée
+/// prévue au chantier Messagerie.
 class UsagerAffichage {
   const UsagerAffichage(this._usager);
 
@@ -91,23 +87,28 @@ class UsagerAffichage {
 
   Color get avatarColor => avatarColorPourUsager(id);
 
-  // --- Consentement image (mock — voir le pont temporaire ci-dessus) -----
+  // --- Consentement image (Firestore depuis R3b) -------------------------
 
-  /// Consentement image de l'usager, **lu depuis `mockUsagersCatalogue`**.
+  /// Consentement image de l'usager, lu depuis Firestore.
   ///
-  /// Un usager absent du mock est traité comme sans consentement enregistré
-  /// (tous les booléens à `false`) : aucune présomption d'accord, conformément
-  /// à la règle du projet.
-  ConsentImage get consentImage =>
-      findUsagerById(id)?.consentImage ?? const ConsentImage();
+  /// Un document dépourvu du champ produit un objet « aucun consentement »
+  /// plutôt qu'une exception ([ConsentImage.fromMap] est tolérant) : aucune
+  /// présomption d'accord, conformément à la règle du projet.
+  ConsentImage get consentImage => _usager.consentImage;
 
-  /// Vrai si l'usager n'a pas d'autorisation image pour [type] — sert à
-  /// afficher le badge d'alerte, **informatif et jamais bloquant** (voir
-  /// CLAUDE.md, section « Consentement image »).
+  /// État du consentement image pour [type] — **informatif, jamais bloquant**
+  /// (voir CLAUDE.md, section « Consentement image »).
   ///
-  /// Délègue à `usagerSansAutorisationImage`, laissée inchangée dans
-  /// `mock_data.dart` : une seule fonction lit le consentement dans toute
-  /// l'app, ce qui garantit qu'aucun chemin ne pourra diverger d'ici R3b.
+  /// Trois états depuis R3b, et non plus un booléen : « jamais répondu » n'est
+  /// pas « refusé ». Voir [EtatConsentImage].
+  EtatConsentImage etatConsentImage(VisibiliteType type) =>
+      consentImage.etatPour(type);
+
+  /// Vrai si l'usager n'a pas d'autorisation image pour [type], au sens de la
+  /// diffusion : un consentement non renseigné vaut refus (opt-in strict).
+  ///
+  /// Pour l'**affichage**, préférer [etatConsentImage], qui distingue un refus
+  /// explicite d'une absence de réponse.
   bool sansAutorisationImage(VisibiliteType type) =>
-      usagerSansAutorisationImage(id, type: type);
+      etatConsentImage(type) != EtatConsentImage.autorise;
 }

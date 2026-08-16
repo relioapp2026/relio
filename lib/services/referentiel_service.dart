@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../models/consent_image.dart';
 import '../models/etablissement.dart';
 import '../models/unite.dart';
 import '../models/usager.dart';
@@ -158,6 +159,37 @@ class ReferentielService {
   Future<UsagerAffichage?> getUsagerAffichage(String usagerId) async {
     final usager = await getUsager(usagerId);
     return usager == null ? null : UsagerAffichage.composer(usager);
+  }
+
+  // -------------------------------------------------------------------------
+  // Écriture (chantier Référentiel / R3b) — LA SEULE DE CE SERVICE
+  //
+  // R2 avait posé le principe « le référentiel ne s'écrit pas depuis le
+  // client », et il reste vrai pour tout le reste : identité, unité, année de
+  // naissance, `actif` ne se modifient que par le seed ou, plus tard, par
+  // Relio Admin. R3b ouvre une exception unique et bornée — le consentement
+  // image, écrit par la famille elle-même, parce qu'un consentement RGPD que
+  // seul un tiers peut saisir n'en est pas un.
+  // -------------------------------------------------------------------------
+
+  /// Enregistre les choix de consentement image d'une famille sur son usager.
+  ///
+  /// [consent] doit être l'objet **relu depuis Firestore et modifié** : sa
+  /// valeur `etablissement` est recopiée telle quelle, et la règle
+  /// `consentImageValide()` refuse l'écriture si elle a bougé.
+  ///
+  /// Laisse remonter [FirebaseException] — `permission-denied` signale soit un
+  /// compte qui n'est pas rattaché à cet usager, soit une charge qui ne
+  /// respecte pas la forme attendue. Ne jamais l'avaler : c'est la seule façon
+  /// de distinguer un refus de règle d'une panne réseau (principe de R2).
+  Future<void> enregistrerConsentImage({
+    required String usagerId,
+    required ConsentImage consent,
+    required String saisiParUid,
+  }) async {
+    await _usagers.doc(usagerId).update({
+      'consentImage': consent.toFirestore(saisiParUid: saisiParUid),
+    });
   }
 
   /// Écarte les usagers inactifs et trie par nom puis prénom.

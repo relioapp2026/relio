@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../models/consent_image.dart';
 import '../models/consultation.dart';
 import '../models/document.dart';
 import '../models/evenement.dart';
@@ -19,15 +18,15 @@ import '../theme/app_colors.dart';
 /// **Le référentiel (établissement, unités, usagers) vit désormais sur
 /// Firestore.** Les écrans le lisent via `ReferentielService` et
 /// `UsagerAffichage` ; plus aucun d'entre eux ne lit ici l'identité d'un
-/// usager. `mockUsagersCatalogue` n'a été conservé que pour **deux ponts
-/// temporaires**, explicitement délimités :
+/// usager. `mockUsagersCatalogue` n'a été conservé que pour **un pont
+/// temporaire**, explicitement délimité :
 ///
-/// 1. **Le consentement image** — R2 a posé `allow write: if false` sur la
-///    collection `usagers`, donc les 55 documents semés portent `consentImage`
-///    à `false`. Le lire depuis Firestore afficherait « aucun consentement »
-///    partout et casserait **silencieusement** le test du badge d'alerte. Seul
-///    `usagerSansAutorisationImage` (et `UsagerAffichage` qui lui délègue) lit
-///    encore ce champ ici. Levée prévue : **R3b**.
+/// 1. ~~Le consentement image~~ — **pont LEVÉ en R3b (2026-08-16).** Le
+///    consentement se lit et s'écrit désormais sur Firestore
+///    (`usagers/{id}.consentImage`), via une règle ciblée qui n'autorise que la
+///    famille rattachée. Les six cas de test différenciés ont migré dans
+///    `tools/seed/data/referentiel.json`, avec `saisiPar: null` — ils portaient
+///    ici un vrai uid Firebase.
 /// 2. **Le lien usager → famille** (`mockFamilles`, `familleUidPourUsagerId`)
 ///    — la règle `users/{uid}` n'autorise chacun à lire que son propre
 ///    document, donc aucune requête ne peut retrouver les comptes famille
@@ -61,7 +60,6 @@ class MockUsager {
     required this.age,
     required this.uniteId,
     required this.avatarColor,
-    this.consentImage = const ConsentImage(),
   });
 
   final String id;
@@ -74,26 +72,13 @@ class MockUsager {
   final String uniteId;
   final Color avatarColor;
 
-  /// Autorisation à l'image par type de publication — voir CLAUDE.md,
-  /// section « Consentement image (usagers) ». `const ConsentImage()` par
-  /// défaut : aucun consentement recueilli tant que la famille (ou un
-  /// admin/coordinateur en fallback) n'a pas validé ses choix.
-  final ConsentImage consentImage;
+  // R3b — le champ `consentImage` a été RETIRÉ d'ici. Il était le dernier
+  // vestige du pont temporaire n°1 : le consentement se lit et s'écrit
+  // désormais sur Firestore (`usagers/{id}.consentImage`), et les six cas de
+  // test différenciés vivent dans `tools/seed/data/referentiel.json`.
 
   /// Affichage uniquement — ne jamais comparer/filtrer sur cette valeur.
   String get nomComplet => '$prenom $nom';
-
-  MockUsager copyWith({ConsentImage? consentImage}) {
-    return MockUsager(
-      id: id,
-      prenom: prenom,
-      nom: nom,
-      age: age,
-      uniteId: uniteId,
-      avatarColor: avatarColor,
-      consentImage: consentImage ?? this.consentImage,
-    );
-  }
 }
 
 // --- Unités -------------------------------------------------------------
@@ -327,13 +312,10 @@ int messagesNonConfirmesPour(String familleUid) {
 // ci-dessus (les 8 usagers de l'Unité Polyvalence rattachés à une famille
 // sont volontairement les mêmes que ceux référencés par Documents/Messages).
 
-// Plus `const` : quelques usagers ci-dessous ont un `consentImage` explicite
-// dont la date se calcule via `_relative(...)` (non constant), voir Chantier
-// 0 pour la convention "dates relatives, jamais de date calendaire figée".
-// La liste reste mutable pour la même raison qu'un `copyWith`/remplacement
-// par index est nécessaire pour enregistrer le résultat de l'écran de
-// recueil (voir ConsentImageScreen) — même pattern que `mockNotifications`/
-// `mockDocuments`.
+// R3b — la liste n'a plus besoin d'être mutable ni non-`const` à cause du
+// consentement : ce champ a quitté `MockUsager`, et l'écran de recueil
+// n'écrit plus rien. Elle reste telle quelle par simple économie de
+// changement — plus aucun code ne la modifie.
 // Chantier Référentiel / R1 — répartition des 55 usagers sur les 3 unités,
 // alignée sur `tools/seed/data/referentiel.json`. 55 = agrément de l'IME,
 // pas l'effectif du jour : semer à pleine charge évite de découvrir un
@@ -364,14 +346,6 @@ final List<MockUsager> mockUsagersCatalogue = [
     age: 9,
     uniteId: 'unite_001',
     avatarColor: AppColors.turquoise,
-    consentImage: ConsentImage(
-      individuelle: true,
-      groupe: true,
-      etablissement: true,
-      dateConsentement: _relative(-30),
-      versionTexte: 'v1',
-      saisiPar: mockProConnecteUid,
-    ),
   ),
   // Consentement image : tout refusé explicitement (choix déjà recueilli,
   // pas seulement la valeur par défaut) — sert à tester le badge sur les
@@ -383,11 +357,6 @@ final List<MockUsager> mockUsagersCatalogue = [
     age: 7,
     uniteId: 'unite_001',
     avatarColor: AppColors.roseViolet,
-    consentImage: ConsentImage(
-      dateConsentement: _relative(-20),
-      versionTexte: 'v1',
-      saisiPar: mockProConnecteUid,
-    ),
   ),
   // Consentement image : mixte (individuelle/établissement acceptés, groupe
   // refusé) — sert à tester le badge uniquement sur le type de publication
@@ -399,14 +368,6 @@ final List<MockUsager> mockUsagersCatalogue = [
     age: 8,
     uniteId: 'unite_001',
     avatarColor: AppColors.marine,
-    consentImage: ConsentImage(
-      individuelle: true,
-      groupe: false,
-      etablissement: true,
-      dateConsentement: _relative(-15),
-      versionTexte: 'v1',
-      saisiPar: mockProConnecteUid,
-    ),
   ),
   MockUsager(id: 'usager_004', prenom: 'Camille', nom: 'Faure', age: 10, uniteId: 'unite_001', avatarColor: AppColors.turquoise),
   MockUsager(id: 'usager_005', prenom: 'Adam', nom: 'Blanchard', age: 6, uniteId: 'unite_001', avatarColor: AppColors.roseViolet),
@@ -440,14 +401,6 @@ final List<MockUsager> mockUsagersCatalogue = [
     age: 14,
     uniteId: 'unite_002',
     avatarColor: AppColors.roseViolet,
-    consentImage: ConsentImage(
-      individuelle: true,
-      groupe: true,
-      etablissement: true,
-      dateConsentement: _relative(-10),
-      versionTexte: 'v1',
-      saisiPar: 'fam_bernard',
-    ),
   ),
   MockUsager(id: 'usager_018', prenom: 'Hugo', nom: 'Rousseau', age: 16, uniteId: 'unite_002', avatarColor: AppColors.marine),
   MockUsager(id: 'usager_019', prenom: 'Jules', nom: 'Girard', age: 13, uniteId: 'unite_002', avatarColor: AppColors.turquoise),
@@ -486,14 +439,6 @@ final List<MockUsager> mockUsagersCatalogue = [
     age: 17,
     uniteId: 'unite_003',
     avatarColor: AppColors.turquoise,
-    consentImage: ConsentImage(
-      individuelle: true,
-      groupe: true,
-      etablissement: true,
-      dateConsentement: _relative(-12),
-      versionTexte: 'v1',
-      saisiPar: mockProConnecteUid,
-    ),
   ),
   // CAS DE TEST HOMONYMIE VOLONTAIRE (2/2) — homonyme de usager_017
   // ("Emma Bernard" également), aucune famille rattachée, unité différente.
@@ -506,11 +451,6 @@ final List<MockUsager> mockUsagersCatalogue = [
     age: 16,
     uniteId: 'unite_003',
     avatarColor: AppColors.roseViolet,
-    consentImage: ConsentImage(
-      dateConsentement: _relative(-5),
-      versionTexte: 'v1',
-      saisiPar: mockProConnecteUid,
-    ),
   ),
   MockUsager(id: 'usager_033', prenom: 'Nathan', nom: 'Petit', age: 18, uniteId: 'unite_003', avatarColor: AppColors.marine),
   MockUsager(id: 'usager_034', prenom: 'Chloé', nom: 'Rousseau', age: 20, uniteId: 'unite_003', avatarColor: AppColors.turquoise),
@@ -566,20 +506,11 @@ MockUsager? findUsagerById(String? id) {
   return null;
 }
 
-/// Vrai si [usagerId] n'a pas d'autorisation image pour [type] — sert à
-/// afficher le badge d'alerte (informatif, jamais bloquant) sur les écrans
-/// de sélection d'usager. Voir CLAUDE.md, section « Consentement image
-/// (usagers) ». Toujours `false` pour `etablissement` (pas de sélection
-/// d'usager sur ce type).
-bool usagerSansAutorisationImage(String? usagerId, {required VisibiliteType type}) {
-  final usager = findUsagerById(usagerId);
-  if (usager == null) return false;
-  return switch (type) {
-    VisibiliteType.individuelle => !usager.consentImage.individuelle,
-    VisibiliteType.groupe => !usager.consentImage.groupe,
-    VisibiliteType.etablissement => false,
-  };
-}
+// R3b — `usagerSansAutorisationImage` a été SUPPRIMÉE d'ici. Elle était la
+// fonction unique qui lisait le consentement dans le mock. Son équivalent est
+// désormais `UsagerAffichage.etatConsentImage(type)`, qui lit Firestore et
+// distingue trois états au lieu de deux (« jamais répondu » n'est pas
+// « refusé »).
 
 /// Chantier 0 / Session C2b — résout un nom d'auteur de publication/
 /// commentaire vers un id, en cherchant parmi les familles connues
