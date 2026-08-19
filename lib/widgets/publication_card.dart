@@ -2,7 +2,9 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import '../models/publication.dart';
+import '../screens/photos_plein_ecran_screen.dart';
 import '../theme/app_colors.dart';
+import '../utils/fade_route.dart';
 import 'publication_menu.dart';
 
 /// Carte de publication du feed.
@@ -155,9 +157,33 @@ class _PublicationCardState extends State<PublicationCard> {
     );
   }
 
+  /// Ouvre la visionneuse plein écran sur la photo touchée.
+  void _ouvrirPleinEcran(int index) {
+    Navigator.of(context).push(
+      fadeRoute(
+        PhotosPleinEcranScreen(
+          photos: _publication.photos,
+          indexInitial: index,
+        ),
+      ),
+    );
+  }
+
   Widget _buildPhotos(int photoCount) {
-    return SizedBox(
-      height: 200,
+    // 4:5 (portrait) plutôt qu'une hauteur fixe de 200 px.
+    //
+    // Le cadre carré-ish d'origine tronquait sévèrement les photos verticales,
+    // qui sont la majorité de ce que produit un téléphone tenu à la main. Le
+    // 4:5 en absorbe l'essentiel sans rogner, tout en gardant des cartes de
+    // hauteur régulière — une hauteur libre ferait sauter la mise en page du
+    // fil à chaque photo.
+    //
+    // `BoxFit.cover` est conservé pour ce qui déborde malgré tout (panorama,
+    // format très large) : mieux vaut un recadrage centré qu'une bande vide.
+    // Le rognage restant est rattrapé par la visionneuse plein écran, qui
+    // montre l'image entière.
+    return AspectRatio(
+      aspectRatio: 4 / 5,
       child: Stack(
         children: [
           Positioned.fill(
@@ -165,7 +191,13 @@ class _PublicationCardState extends State<PublicationCard> {
               controller: _pageController,
               itemCount: photoCount,
               onPageChanged: (index) => setState(() => _currentPage = index),
-              itemBuilder: (context, index) => _Photo(url: _publication.photos[index]),
+              itemBuilder: (context, index) => GestureDetector(
+                // `opaque` : la zone tappable couvre toute la photo, y compris
+                // les parties transparentes d'un PNG.
+                behavior: HitTestBehavior.opaque,
+                onTap: () => _ouvrirPleinEcran(index),
+                child: _Photo(url: _publication.photos[index]),
+              ),
             ),
           ),
           if (photoCount > 1) ...[
@@ -273,6 +305,9 @@ class _PublicationCardState extends State<PublicationCard> {
 /// (voir `Publication.photos`) : l'image se charge directement, sans appel au
 /// SDK Storage, sans évaluation de règle et sans lecture Firestore
 /// supplémentaire. Le cache HTTP de la plateforme fait le reste au défilement.
+///
+/// Occupe tout le cadre que lui donne son parent (`AspectRatio` 4:5) — elle ne
+/// fixe plus sa propre hauteur.
 class _Photo extends StatelessWidget {
   const _Photo({required this.url});
 
@@ -284,7 +319,7 @@ class _Photo extends StatelessWidget {
       url,
       fit: BoxFit.cover,
       width: double.infinity,
-      height: 200,
+      height: double.infinity,
       loadingBuilder: (context, enfant, progression) {
         if (progression == null) return enfant;
         // Un fond neutre plutôt qu'un vide blanc : sur le wifi d'un
