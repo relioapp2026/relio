@@ -1,8 +1,32 @@
+import 'dart:developer';
+import 'dart:typed_data';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../models/publication.dart';
 import '../models/visibilite_type.dart';
 import 'auth_service.dart';
+import 'photo_service.dart';
+
+/// La publication a bien été créée, mais ses photos ne sont pas arrivées.
+///
+/// Ce cas mérite son propre type parce que la conduite à tenir est l'inverse
+/// d'un échec ordinaire : **il ne faut surtout pas réessayer**. Le texte du
+/// professionnel est en base ; relancer la création produirait un doublon.
+/// L'écran doit donc le prévenir, puis se fermer normalement.
+class PhotosNonEnvoyeesException implements Exception {
+  const PhotosNonEnvoyeesException(this.publicationId, this.cause);
+
+  /// La publication existe réellement, avec son texte, sans ses photos.
+  final String publicationId;
+
+  /// L'erreur d'origine (réseau, refus de règle Storage…).
+  final Object cause;
+
+  @override
+  String toString() =>
+      'PhotosNonEnvoyeesException(publication $publicationId créée sans photos : $cause)';
+}
 
 /// Une page du feed : les publications lues, et de quoi demander la suivante.
 class PagePublications {
@@ -55,10 +79,12 @@ class PagePublications {
 /// via `cibles`, exactement comme la règle le vérifiera de son côté. Ne jamais
 /// requêter large en comptant sur les règles pour restreindre.
 class PublicationService {
-  PublicationService({FirebaseFirestore? firestore})
-      : _firestore = firestore ?? FirebaseFirestore.instance;
+  PublicationService({FirebaseFirestore? firestore, PhotoService? photoService})
+      : _firestore = firestore ?? FirebaseFirestore.instance,
+        _photoService = photoService ?? PhotoService();
 
   final FirebaseFirestore _firestore;
+  final PhotoService _photoService;
 
   /// Nombre de publications par page.
   ///
@@ -176,11 +202,33 @@ class PublicationService {
   /// interface, le chip « Établissement » est grisé en amont. Voir
   /// CLAUDE.md, section « Permission diffusion établissement », sous-section
   /// « portée étendue ».
+  ///
+  /// ---
+  /// ### Ordre des opérations avec photos (étape 2) : document d'abord
+  ///
+  /// Le document est créé (`photos: []`), **puis** les photos partent vers
+  /// `publications/{id}/…`, **puis** une mise à jour y inscrit les URLs.
+  ///
+  /// L'ordre inverse — pré-générer l'id, envoyer les photos, créer le document
+  /// complet — serait plus élégant : `photos` serait immuable sans règle
+  /// supplémentaire. Il a été écarté pour deux raisons. D'abord la règle
+  /// Storage n'aurait **rien à vérifier**, le document n'existant pas encore :
+  /// n'importe quel pro pourrait déposer des fichiers sous un id inventé.
+  /// Ensuite un professionnel qui abandonne après l'envoi laisserait des
+  /// fichiers **orphelins et définitifs** — aucun document ne les référence, la
+  /// suppression physique est exclue au MVP, et le script de seed a interdiction
+  /// de toucher à Storage. Une fuite lente sans personne pour faire le ménage.
+  ///
+  /// Contrepartie assumée de l'ordre retenu : si l'envoi échoue, la publication
+  /// existe en texte seul et [PhotosNonEnvoyeesException] est levée. On ne perd
+  /// jamais le texte écrit par le professionnel.
   Future<String> creer({
     required VisibiliteType type,
     required List<String> usagersConcernesIds,
     required String? uniteId,
     required String texte,
+    List<Uint8List> photos = const [],
+    void Function(int envoyees, int total)? progressionPhotos,
   }) async {
     final pro = AuthService.currentProUser;
     if (pro == null) {
@@ -206,6 +254,38 @@ class PublicationService {
     );
 
     final doc = await _publications.add(publication.toFirestoreCreation());
+
+    if (photos.isNotEmpty) {
+      try {
+        final urls = await _photoService.envoyerPourPublication(
+          publicationId: doc.id,
+          photos: photos,
+          progression: progressionPhotos,
+        );
+        // Seule écriture autorisée sur `photos`, et une seule fois : la
+        // troisième branche du `allow update` exige que la liste soit encore
+        // vide. Écrire ce seul champ n'est pas un choix de style — la règle
+        // impose `hasOnly(['photos'])`, toucher un champ de plus ferait échouer
+        // l'écriture entière.
+        await doc.update({'photos': urls});
+      } catch (e, pile) {
+        // Trace de développement, en plus du message affiché. Sans elle, un
+        // refus de règle Storage est indiscernable d'une panne réseau une fois
+        // l'application refermée : le 2026-08-19, il a fallu fouiller le
+        // logcat Android brut pour retrouver le `403 / -13021` qui expliquait
+        // tout.
+        log(
+          'Envoi des photos échoué pour la publication ${doc.id}',
+          name: 'relio.publications',
+          error: e,
+          stackTrace: pile,
+        );
+        // La publication existe : on ne laisse pas l'appelant croire à un échec
+        // total, sans quoi il réessaierait et créerait un doublon.
+        throw PhotosNonEnvoyeesException(doc.id, e);
+      }
+    }
+
     return doc.id;
   }
 

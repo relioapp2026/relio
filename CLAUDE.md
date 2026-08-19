@@ -180,10 +180,10 @@ Le consentement image s'écrit réellement. C'était le dernier écart RGPD conn
 
 **Chantier publications, découpage acté en trois itérations :**
 1. **Publications texte seul** — ✅ **CLOSE, validée sur Pixel 9a le 2026-07-31.** Voir le détail ci-dessous.
-2. **Upload photos** : Firebase Storage, règles de sécurité Storage, compression avant upload (une photo brute de Pixel 9a fait 3-5 Mo, volumétrie à surveiller sur le plan Blaze), états de chargement dans l'UI. **Lire le POINT BLOQUANT de la section « Logique métier » avant de l'ouvrir.**
+2. **Upload photos** — ✅ **CLOSE, validée sur Pixel 9a le 2026-08-19.** Voir « Publications — étape 2 close » ci-dessous.
 3. **Likes et commentaires** : dépendent des publications déjà existantes, donc après.
 
-**Séquencement Publications Étape 2 (photos) — décision du 2026-08-16**
+**Séquencement Publications Étape 2 (photos) — décision du 2026-08-16, appliquée et close le 2026-08-19**
 
 Storage et l'upload photo pour les trois types de publication (individuelle, groupe,
 établissement) s'activent **ensemble, en un seul chantier, après R3b** — pas d'activation
@@ -230,6 +230,163 @@ Brief : `docs/briefs/brief-publications-etape1.md` (son encadré de tête a ét�
 - **`mockPublications` conservé, marqué `// TEMPORAIRE`** : il n'alimente plus aucun écran, il n'est gardé que pour ses commentaires de démonstration, futures fixtures de l'étape 3. À supprimer avec `PublicationCommentaire` à ce moment-là.
 - **Le seul point de la définition de terminé non vérifié** : le scénario 3 du brief (« un pro tente de publier sur une unité hors de son périmètre → refusée ») **n'est pas atteignable depuis l'interface** — le sélecteur ne propose que les unités autorisées. La règle existe et est active (c'est elle qui a refusé toutes les publications individuelles avant le correctif ci-dessus), mais elle protège contre un client modifié, que l'app ne sait pas simuler. Le prouver demande le rôle IAM **Firebase Rules Admin**, dont l'attribution est reportée et réservée en priorité à la règle de Messagerie.
 
+### Publications — étape 2 close (2026-08-19) : Storage et photos
+
+Les photos circulent réellement, sur les **trois types de publication activés ensemble**
+comme prévu. Les 8 scénarios de validation sont passés sur Pixel 9a.
+
+**Les six décisions du chantier**
+
+**1. Compression — JPEG, qualité 80, 1920 px sur le plus grand côté**, via
+`flutter_image_compress`, côté client, avant envoi, identique aux trois types. On passe de
+3-8 Mo à 200-600 Ko.
+- **Le piège de `minWidth`/`minHeight`, à ne pas réintroduire** : malgré leur nom, ces
+  paramètres garantissent que le résultat reste *au moins* aussi grand que la boîte
+  donnée. La doc du package l'illustre — 4000×2000 avec `minWidth: 1920, minHeight: 1080`
+  sort en **2160×1080**. Leur passer naïvement `1920, 1920` ferait sortir une photo
+  4032×3024 de Pixel en 2560×1920. `PhotoService` mesure donc les dimensions réelles
+  d'abord (`ImageDescriptor.encoded`, en-tête seul, sans décoder les 12 millions de
+  pixels) et passe la cible exacte.
+- **Tout en mémoire, jamais sur des fichiers** : sur le Web — cible MVP — le package
+  n'expose que `compressWithList`. Un seul code pour Android, Web et iOS.
+- **EXIF supprimé** (`keepExif: false`) : une photo de téléphone embarque les
+  **coordonnées GPS** du lieu de prise de vue, donc l'adresse de l'IME, lisibles par
+  toutes les familles destinataires. Corollaire **obligatoire** : `autoCorrectionAngle:
+  true`, sinon toutes les photos verticales s'affichent couchées — l'orientation est
+  précisément portée par l'EXIF qu'on supprime.
+- La compression a lieu **à la sélection**, pas à la publication : mémoire bornée
+  (5 × ~400 Ko au lieu de 5 × 8 Mo), publication rapide, fichier illisible signalé avant
+  que le pro n'ait rédigé son texte.
+
+**2. Chemins Storage — `publications/{publicationId}/{index}.jpg`, index 0 à 4.** Aucune
+hiérarchie établissement / unité / usager : la publication reste la seule source de vérité
+sur la portée, et `storage.rules` la relit plutôt que de dupliquer cette logique.
+- **Le nom d'origine du fichier est abandonné** (décision affinée le 2026-08-19, le brief
+  prévoyait `{index}_{nomFichier}.jpg`) : une photo peut arriver nommée
+  `Emma_Bernard_sortie.jpg`, et ce nom se retrouverait dans un chemin Storage, dans l'URL
+  publique et dans la console. Le prénom d'un enfant n'a rien à faire dans une URL, et
+  l'ordre est déjà porté par l'index.
+- C'est aussi ce nom contraint qui **borne le dossier à 5 objets** : les règles Storage ne
+  savent pas compter les fichiers d'un dossier, contraindre le nom est le seul garde-fou
+  possible à ce niveau.
+
+**3. Suppression — soft delete seul, aucune suppression physique.** `allow delete: if
+false` côté Storage comme côté Firestore. Les fichiers d'une publication masquée restent
+en Storage ; aucun chemin légitime de l'app n'y mène.
+- **À ne jamais présenter autrement : le masquage n'est PAS une révocation technique.**
+  `photos` contient des **URLs de téléchargement**, qui portent leur propre jeton et
+  fonctionnent ensuite sans authentification. Qui détient l'URL y accède encore après
+  masquage.
+- **Échappatoire manuelle en cas d'incident réel** : régénérer le jeton d'accès du fichier
+  depuis la console Firebase (Storage → le fichier → jeton). Ça invalide **toutes** les
+  URLs existantes pour ce fichier. Geste grossier et non granulaire, mais suffisant pour un
+  pilote à un seul établissement. Une révocation automatique au masquage (Cloud Function)
+  reste une **amélioration future**.
+- **Pourquoi des URLs et non des chemins** : redemander l'URL à chaque affichage coûterait
+  ~2 lectures Firestore par photo et par rafraîchissement (un fil de 15 publications à 3
+  photos = 90 lectures) **sans rien protéger de plus** — l'URL rendue porte un jeton dans
+  les deux cas. Le gain de l'option « chemin » se limite à cesser d'émettre de nouveaux
+  liens, pas à révoquer les anciens.
+
+**4. Règles Storage — même logique d'accès que Firestore, jamais une seconde logique.**
+`accesLecture()` de `storage.rules` est la **copie conforme** de celle de
+`firestore.rules` ; les deux doivent le rester. Lecture = périmètre de la publication ;
+écriture = l'auteur seul, et seulement tant que `photos` est vide.
+- **Plafond dur : deux documents Firestore par évaluation** (« No more than two Firestore
+  documents may be accessed in a single Rules evaluation »). La règle de lecture en
+  consomme exactement deux — utilisateur + publication. **Aucune place pour un troisième
+  `get()`** : un besoin supplémentaire devra passer par une dénormalisation dans le
+  document publication.
+- **La faute commise et corrigée le jour même** : la première version appelait
+  `publicationDoc()` **deux fois** dans la même règle d'écriture — exactement ce que
+  `firestore.rules` avait déjà réglé avec un `let`. Toujours **lier puis lire la
+  liaison**, jamais appeler deux fois.
+- Troisième branche ajoutée au `allow update` de `publications` : l'auteur écrit `photos`
+  **une seule fois**, si la liste est encore vide, 1 à 5 entrées. Ordre des opérations :
+  document créé (`photos: []`) → photos envoyées → URLs inscrites. L'ordre inverse
+  (pré-générer l'id) a été écarté : la règle Storage n'aurait rien à vérifier, et un pro
+  qui abandonne laisserait des fichiers **orphelins et définitifs**, que rien ne référence
+  et que personne n'a le droit de supprimer.
+
+**5. Garde-fou administration — le script de seed ne doit JAMAIS être étendu à Storage.**
+Ni créer, ni modifier, ni supprimer un fichier. Même principe que `champsCreationSeule`
+sur `consentImage` en R3b : **une donnée produite par un utilisateur réel — ici une photo
+envoyée par un pro — ne doit jamais pouvoir être écrasée par un outil de
+resynchronisation** rejoué à chaque rentrée.
+
+**6. Garde-fou établissement — un texte d'alerte fixe**, non fermable, sous le sélecteur de
+photo, à chaque publication de type établissement : « Publication établissement : vérifiez
+qu'aucun visage n'est identifiable sur les photos partagées. » Ni case à cocher de
+déclaration, ni détection technique, ni affichage de la liste des refus. Orange
+`shade800` — la teinte des refus de consentement partout ailleurs dans l'app, pour qu'un
+pro n'ait rien à réapprendre.
+
+**⚠️ Le piège d'activation cross-service — à relire avant TOUT chantier touchant une règle
+qui appelle `firestore.get()`**
+
+Une règle Storage qui interroge Firestore exige une **activation explicite du lien entre
+les deux produits**. Sans elle, l'appel échoue, la condition entière échoue, et le client
+reçoit un `403 / StorageException -13021` (« User does not have permission to access this
+object ») **nu, sans rien qui désigne la cause**.
+
+**Un déploiement CLI non interactif n'affiche jamais l'invite d'activation.** `firebase
+deploy --only storage` répond « compiled successfully » puis « released rules », et rien
+d'autre — la règle est bien déployée et bien compilée, elle refuse simplement tout. Seule
+la console web montre le bandeau.
+
+Avant de conclure à un échec :
+1. Console Firebase → **Storage → Règles** : vérifier qu'aucun bandeau « appels de base de
+   données multiservices non configurés » n'apparaît, et l'activer depuis là si c'est le
+   cas.
+2. **Attendre quelques minutes** : l'activation se propage avec du retard. Un test
+   immédiat peut encore échouer sans que rien ne soit cassé.
+3. Seulement ensuite, chercher ailleurs.
+
+**Méthode de diagnostic qui a fonctionné, à reprendre telle quelle** : déployer une version
+de la règle **sans aucun `firestore.get()`** (authentification, forme du nom, taille et
+type conservés), tester un envoi, puis remettre la vraie immédiatement. Si l'envoi passe,
+la cause est dans les appels cross-service et non dans les prédicats locaux — isolé en un
+seul déploiement, sans deviner.
+
+**Storage ne renonce jamais tout seul non plus — leçon jumelle de R3a**
+
+Par défaut le SDK Storage réessaie **jusqu'à 10 minutes** avant de faire remonter un échec
+d'envoi. Pendant tout ce temps l'écran tourne sans rien dire, et si l'utilisateur quitte
+l'écran entre-temps, un `if (!mounted) return;` supprime le message. **Les deux se sont
+produits ensemble le 2026-08-19** : le refus de règle existait, personne ne l'a su. D'où
+trois correctifs, à ne pas défaire :
+- `setMaxUploadRetryTime` / `setMaxOperationRetryTime` à **30 s** dans `main.dart` —
+  l'analogue exact de `delaiMaxLecture` (R3a), sur un autre produit. Ce délai borne les
+  **reprises après échec**, pas la durée d'un transfert qui progresse.
+- Le message d'échec passe par une `GlobalKey<ScaffoldMessengerState>`
+  (`lib/utils/messages_globaux.dart`) posée sur `MaterialApp.scaffoldMessengerKey`, et
+  **avant** le test de `mounted` : il s'affiche même si l'écran d'origine est parti.
+  `mounted` ne sert plus qu'au `pop()`.
+- `log()` (`dart:developer`) avec l'id de la publication et l'erreur d'origine — il a fallu
+  fouiller le logcat Android brut pour retrouver le 403.
+- **Écarté : un champ `photosEnEchec` en base.** Durable et affichable, donc tentant, mais
+  **poser ce marqueur demande le réseau, alors que la première cause d'échec d'envoi est la
+  perte du réseau** : un marqueur absent exactement quand il compte vaut moins que pas de
+  marqueur.
+- **Limite assumée** : si l'app est tuée en plein envoi, aucun message n'est possible. Le
+  filet reste le fil lui-même — une publication sans photo, ça se voit. Recours unique, et
+  c'est ce que dit le message : masquer et republier, les photos n'étant pas ajoutables
+  après coup.
+
+**Résidu accepté, NON fermé** — le verrou est « `photos` encore vide », **identique dans
+les deux fichiers de règles**. Conséquence : une publication de l'étape 1 (qui ne porte pas
+le champ `photos`) pourrait recevoir des photos après coup via un client modifié. Borné à
+ses propres publications, 5 photos, une seule fois. Le fermer demanderait une fenêtre
+temporelle après `dateCreation`, qui devrait exister **à l'identique des deux côtés** —
+sinon des fichiers arriveraient dans Storage sans que le document puisse jamais les
+référencer, ce qui serait un pire défaut que celui qu'on corrige. **Deux verrous identiques
+valent mieux qu'un verrou plus fin de chaque côté.** Accepté tel quel, comme la décision
+(b) de l'étape 1.
+
+**Hors périmètre, confirmé** : le **Journal de vie n'affiche aucune publication réelle**
+(tuiles mock en dur), c'est l'étape 5. Les photos y apparaîtront le jour où les
+publications y apparaîtront — il n'y avait rien à y faire pour ce chantier.
+
 **Comptes de test disponibles sur `relio-dev`** : un compte pro (Esteban, 3 unités, `peutDiffuserEtablissement: true`, `peutModerer: true`), un compte pro restreint (`pro.test`, `unite_001` seule, les deux permissions à `false`) et deux comptes famille — un simple (KSOS Mama, `usagersIds: ["usager_001"]`) et un fratrie (`usagersIds: ["usager_015","usager_033"]`, deux unités). **Les trois profils sont nécessaires** : le compte complet ne peut rien prouver seul, puisque rien n'est hors de son périmètre.
 
 **Décisions de modélisation actées, à ne pas perdre :**
@@ -259,13 +416,21 @@ Brief : `docs/briefs/brief-publications-etape1.md` (son encadré de tête a ét�
 
 Chaque publication : texte (max 1000 caractères), 1 à 5 photos, auteur, date, likes, commentaires, notifications.
 
-### ⛔ POINT BLOQUANT avant l'ouverture de l'étape 2 (photos) — publications d'établissement et consentement image
+### ✅ POINT BLOQUANT REFERMÉ le 2026-08-19 — publications d'établissement et consentement image
+
+> **Ce point est clos.** Il est conservé ci-dessous parce qu'il documente un angle mort
+> structurel qui, lui, n'a pas disparu : une publication d'établissement ne cible aucun
+> usager, donc aucun consentement image ne peut lui être opposé. Trois garde-fous s'y
+> superposent désormais — `peutDiffuserEtablissement` (qui publie), le texte d'alerte fixe
+> de l'étape 2 (ce que la photo montre), et la formation du pro (hors produit). **Ne pas le
+> rouvrir sans raison nouvelle, et ne pas remplacer le texte d'alerte par une case à cocher :
+> les deux ont été instruits et tranchés.**
 
 Les publications de type `etablissement` n'ont, par construction, aucun `usagersConcernes` — donc aucun mécanisme de vérification de consentement image ne s'applique à elles, quel que soit l'auteur. Dès que l'étape 2 introduit les photos, ce point doit être tranché avant d'ouvrir l'upload sur ce type de publication : soit un mécanisme de déclaration explicite au moment de publier (ex. confirmation « aucun enfant identifiable dont la famille a refusé le consentement n'apparaît sur cette photo »), soit une restriction de contenu (publications établissement limitées à du contenu non-identifiant : décors, bâtiments, activités sans visage reconnaissable), soit la restriction d'auteur envisagée aujourd'hui (`peutDiffuserEtablissement`) combinée à une formation ciblée des coordinateurs sur ce risque précis. **Ne pas ouvrir l'étape 2 sur les publications établissement sans avoir tranché ce point.**
 
 **Mise à jour du 2026-08-16 :** la troisième branche (restriction d'auteur) est **retenue et implémentée** — `peutDiffuserEtablissement` gate désormais la publication établissement, voir « portée étendue ». Elle réduit le risque en réservant ce type de publication à des comptes formés, mais **ne referme pas le point bloquant** : elle contrôle *qui* publie, pas *ce que la photo montre*. Un coordinateur autorisé peut toujours diffuser à tout l'établissement la photo d'un enfant dont la famille a refusé le consentement « établissement ».
 
-**Le volet contenu a été tranché le 2026-08-16** — voir « Séquencement Publications Étape 2 » plus bas. Garde-fou retenu : un **texte d'alerte fixe** sous le sélecteur de photo, à chaque publication établissement. **Ni checkbox de déclaration, ni détection technique, ni affichage de la liste des refus** — les trois ont été envisagés puis écartés. Le point bloquant est donc refermé sur le principe ; il reste à implémenter au moment de l'étape 2.
+**Le volet contenu a été tranché le 2026-08-16** — voir « Séquencement Publications Étape 2 » plus bas. Garde-fou retenu : un **texte d'alerte fixe** sous le sélecteur de photo, à chaque publication établissement. **Ni checkbox de déclaration, ni détection technique, ni affichage de la liste des refus** — les trois ont été envisagés puis écartés. **Implémenté et validé le 2026-08-19** (`_AlerteEtablissement` dans `create_publication_screen.dart`) : le point bloquant est refermé.
 
 ## Consentement image (usagers)
 
@@ -345,7 +510,7 @@ d'établissement (voir « Logique métier ») reste donc ouvert.
 
 ## Contraintes et vigilance
 
-- **RGPD et données sensibles** : les données concernent des enfants et adultes en situation de handicap. Aucune donnée réelle pendant le développement. Prévoir dès le départ des règles de sécurité Firestore strictes (jamais de règles ouvertes, même « temporairement »). Le consentement à l'image est géré par type de publication et ne conditionne jamais l'accès au service (RGPD art. 7§4) — voir « Consentement image ». `firestore.rules` existe et est déployé sur `relio-dev` ; la règle ci-dessous reste à ajouter. Collections couvertes à ce jour : `users` et `codes_invitation` (Phase 1), `etablissements`/`unites`/`usagers` depuis R2 (lecture scopée par le document `users/{uid}` du demandeur, écriture cliente interdite — le seed y écrit via le SDK Admin, qui contourne les règles ; **une exception depuis R3b** : une famille peut écrire le seul champ `consentImage` de son usager, contenu de la sous-map validé clé par clé), et `publications` depuis l'étape 1 du chantier Publications (lecture scopée par `cibles`, création réservée aux pros et bornée à leurs `unitesAcces`, modification à deux branches, `allow delete: if false`).
+- **RGPD et données sensibles** : les données concernent des enfants et adultes en situation de handicap. Aucune donnée réelle pendant le développement. Prévoir dès le départ des règles de sécurité Firestore strictes (jamais de règles ouvertes, même « temporairement »). Le consentement à l'image est géré par type de publication et ne conditionne jamais l'accès au service (RGPD art. 7§4) — voir « Consentement image ». `firestore.rules` existe et est déployé sur `relio-dev` ; la règle ci-dessous reste à ajouter. Collections couvertes à ce jour : `users` et `codes_invitation` (Phase 1), `etablissements`/`unites`/`usagers` depuis R2 (lecture scopée par le document `users/{uid}` du demandeur, écriture cliente interdite — le seed y écrit via le SDK Admin, qui contourne les règles ; **une exception depuis R3b** : une famille peut écrire le seul champ `consentImage` de son usager, contenu de la sous-map validé clé par clé), et `publications` depuis l'étape 1 du chantier Publications (lecture scopée par `cibles`, création réservée aux pros et bornée à leurs `unitesAcces`, modification à **trois** branches depuis l'étape 2 — texte, masquage, photos — `allow delete: if false`). **`storage.rules` existe et est déployé depuis le 2026-08-19** : il couvre `publications/{publicationId}/{fichier}` et ne duplique aucune logique de portée, il relit le document publication via `firestore.get()` — lire impérativement « Le piège d'activation cross-service » avant d'y toucher.
 - **Règle à ajouter (non commencée, dépend du champ `peutDiffuserEtablissement`)** : sur les collections `documents` et `messages`, refuser toute écriture avec `portee: "etablissement"` si `peutDiffuserEtablissement` n'est pas `true` sur le profil de l'auteur. Réutiliser le pattern `diff().affectedKeys().hasOnly()` déjà documenté dans `docs/briefs/brief-technique-consentement-image-invitations.md` pour la règle de consentement image, à adapter ici. Invérifiable avant la Phase 1 du chantier Back (pas de collection `users/{uid}` réelle avant ça) — ne pas l'écrire avant.
 - **Accessibilité** : valeur fondamentale du projet (public TSA notamment). Tailles de texte respectueuses des réglages système, contrastes suffisants, zones tappables généreuses (min 48 px).
 - Ne jamais affirmer de garanties de sécurité invérifiables ; vocabulaire conforme RGPD.

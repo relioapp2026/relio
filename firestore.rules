@@ -301,6 +301,13 @@ service cloud.firestore {
       // (auteurId, auteurNom, dateCreation, typePublication,
       // usagersConcernes, uniteId, cibles, etablissementId) : aucune
       // combinaison de clés modifiées ne peut les atteindre.
+      //
+      // 3. Enregistrer les photos : l'AUTEUR SEUL, UNE SEULE FOIS (étape 2).
+      //    Les fichiers partent vers Storage après la création du document —
+      //    il faut donc bien un `update` pour y inscrire les URLs. Le verrou
+      //    « photos encore vide » est ce qui empêche cet update d'être
+      //    rejoué : une fois les URLs posées, elles sont aussi immuables que
+      //    la portée.
       allow update: if request.auth != null
         && (
           (
@@ -313,6 +320,36 @@ service cloud.firestore {
               resource.data.auteurId == request.auth.uid
               || userDoc().get('peutModerer', false) == true
             )
+          )
+          || (
+            // **Miroir exact de la condition d'écriture de storage.rules.**
+            // Les deux verrous doivent rester identiques : si l'un se ferme
+            // sans l'autre, on obtient soit des fichiers envoyés que le
+            // document ne pourra jamais référencer, soit l'inverse.
+            //
+            // `.get('photos', [])` et non `.photos` : les publications
+            // créées à l'étape 1 ne portent pas ce champ, et lire un champ
+            // absent produit une ERREUR d'évaluation (leçon de R2).
+            //
+            // `size() > 0` n'est pas cosmétique : sans lui, écrire une liste
+            // vide serait autorisé sans rien verrouiller, et l'update
+            // resterait rejouable indéfiniment.
+            //
+            // Résidu accepté, comme la décision (b) de l'étape 1 : une
+            // publication de l'étape 1 (sans champ `photos`) pourrait
+            // recevoir des photos après coup via un client modifié. Borné à
+            // ses propres publications, 5 photos, une seule fois. Fermer ce
+            // cas demanderait une fenêtre temporelle après `dateCreation`,
+            // qui devrait alors exister à l'identique dans storage.rules —
+            // sinon des fichiers arriveraient sans pouvoir être référencés.
+            // Deux verrous identiques valent mieux qu'un verrou plus fin de
+            // chaque côté.
+            champsModifiablesSeulement(['photos'])
+            && resource.data.auteurId == request.auth.uid
+            && resource.data.get('photos', []).size() == 0
+            && request.resource.data.photos is list
+            && request.resource.data.photos.size() > 0
+            && request.resource.data.photos.size() <= 5
           )
         );
 

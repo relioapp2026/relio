@@ -15,8 +15,8 @@ import 'publication_menu.dart';
 /// pas donnerait une fausse idée de ce qui marche. Ils reviennent à l'étape 3,
 /// câblés pour de vrai.
 ///
-/// Le bloc photo ne s'affiche que s'il y a des photos — étape 2. Sans ce
-/// garde-fou, chaque publication texte réserverait 200 px de vide.
+/// Le bloc photo ne s'affiche que s'il y a des photos. Sans ce garde-fou,
+/// chaque publication texte réserverait 200 px de vide.
 ///
 /// L'interactivité précédente (like animé, bottom sheet des commentaires,
 /// `_CommentsSheet`) a été retirée ici et sera reconstruite contre Firestore à
@@ -165,23 +165,7 @@ class _PublicationCardState extends State<PublicationCard> {
               controller: _pageController,
               itemCount: photoCount,
               onPageChanged: (index) => setState(() => _currentPage = index),
-              itemBuilder: (context, index) {
-                final palette = [
-                  AppColors.turquoise,
-                  AppColors.marine,
-                  AppColors.roseViolet,
-                ];
-                return Container(
-                  color: palette[index % palette.length].withValues(alpha: 0.85),
-                  child: const Center(
-                    child: Icon(
-                      Icons.image_outlined,
-                      size: 48,
-                      color: Colors.white70,
-                    ),
-                  ),
-                );
-              },
+              itemBuilder: (context, index) => _Photo(url: _publication.photos[index]),
             ),
           ),
           if (photoCount > 1) ...[
@@ -276,6 +260,71 @@ class _PublicationCardState extends State<PublicationCard> {
                 recognizer: TapGestureRecognizer()
                   ..onTap = () => setState(() => _textExpanded = true),
               ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Une photo du carrousel.
+///
+/// [url] est l'URL de téléchargement enregistrée dans le document publication
+/// (voir `Publication.photos`) : l'image se charge directement, sans appel au
+/// SDK Storage, sans évaluation de règle et sans lecture Firestore
+/// supplémentaire. Le cache HTTP de la plateforme fait le reste au défilement.
+class _Photo extends StatelessWidget {
+  const _Photo({required this.url});
+
+  final String url;
+
+  @override
+  Widget build(BuildContext context) {
+    return Image.network(
+      url,
+      fit: BoxFit.cover,
+      width: double.infinity,
+      height: 200,
+      loadingBuilder: (context, enfant, progression) {
+        if (progression == null) return enfant;
+        // Un fond neutre plutôt qu'un vide blanc : sur le wifi d'un
+        // établissement, une photo met parfois une seconde ou deux à arriver, et
+        // la carte ne doit pas sauter de hauteur pendant ce temps.
+        return Container(
+          color: AppColors.marine.withValues(alpha: 0.06),
+          alignment: Alignment.center,
+          child: const SizedBox(
+            width: 24,
+            height: 24,
+            child: CircularProgressIndicator(
+              strokeWidth: 2.5,
+              color: AppColors.turquoise,
+            ),
+          ),
+        );
+      },
+      // Une photo qui ne charge pas ne doit pas casser la publication : le
+      // texte, lui, est là. On le dit plutôt que de laisser un rectangle vide
+      // ou une exception rouge de Flutter au milieu du fil.
+      errorBuilder: (context, erreur, trace) => Container(
+        color: AppColors.marine.withValues(alpha: 0.06),
+        alignment: Alignment.center,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.image_not_supported_outlined,
+              size: 32,
+              color: AppColors.marine.withValues(alpha: 0.35),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Photo indisponible',
+              style: TextStyle(
+                fontSize: 12,
+                color: AppColors.marine.withValues(alpha: 0.5),
+              ),
+            ),
           ],
         ),
       ),

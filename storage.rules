@@ -1,0 +1,146 @@
+rules_version = '2';
+
+// Règles de sécurité Cloud Storage — relio-dev.
+// Chantier Publications / étape 2 (photos).
+//
+// PRINCIPE : aucune logique de portée ici. La publication reste la seule
+// source de vérité sur qui voit quoi (champ `cibles`, posé à l'étape 1) ;
+// ces règles ne font que la relire. Dupliquer la logique de portée dans
+// deux fichiers de règles différents garantirait qu'ils divergent à la
+// première correction — et une divergence donnerait une photo visible par
+// quelqu'un qui n'a pas le droit de lire le texte qui l'accompagne.
+//
+// Les chemins ne portent donc AUCUNE hiérarchie établissement / unité /
+// usager : `publications/{publicationId}/0.jpg`, rien de plus. Décision
+// actée, voir CLAUDE.md, « Publications étape 2 ».
+//
+// ⚠️ PLAFOND DUR À CONNAÎTRE : « No more than two Firestore documents may
+// be accessed in a single Rules evaluation » (limite documentée des
+// cross-service rules). Chaque `let` ci-dessous garantit UN SEUL appel par
+// document — pas par prudence rédactionnelle, mais parce que la première
+// version de ce fichier appelait `publicationDoc()` deux fois dans la même
+// règle d'écriture, exactement la faute que `firestore.rules` avait déjà
+// corrigée avec le même pattern. Ne jamais appeler ces fonctions deux fois
+// dans une même condition : lier, puis lire la liaison.
+//
+// Chaque get() est facturé comme une lecture Firestore ordinaire.
+//
+// Tout chemin non couvert par un `match` ci-dessous est refusé par défaut.
+// Pas de règle attrape-tout `if false` : elle serait sans effet (les
+// `allow` s'additionnent en OU) et donnerait un fichier où deux lignes se
+// contredisent en apparence — même raisonnement qu'en R3b sur `usagers`.
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Document `users/{uid}` du demandeur — miroir exact de `userDoc()`
+    // dans firestore.rules.
+    function userDoc() {
+      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data;
+    }
+
+    // Document de la publication à laquelle ce fichier appartient.
+    function publicationDoc(publicationId) {
+      return firestore.get(/databases/(default)/documents/publications/$(publicationId)).data;
+    }
+
+    // Périmètre de lecture du demandeur — COPIE CONFORME de `accesLecture()`
+    // dans firestore.rules. Les deux doivent rester identiques : une
+    // divergence rendrait une photo inaccessible alors que son texte
+    // s'affiche, ou l'inverse.
+    //
+    // `.get(champ, défaut)` partout : un pro n'a pas de `usagersIds`, une
+    // famille n'a pas de `unitesAcces`, et lire un champ absent produit une
+    // ERREUR d'évaluation, pas `null` (leçon de R2).
+    //
+    // La fusion des trois listes n'est sûre que grâce au préfixage des ids
+    // (`unite_`, `usager_`, `etab_`), globalement uniques tous types
+    // confondus — décision verrouillée, voir CLAUDE.md.
+    function accesLecture() {
+      let u = userDoc();
+      return u.get('unitesAcces', [])
+              .concat(u.get('usagersIds', []))
+              .concat([u.get('etablissementId', '')]);
+    }
+
+    // Droit d'envoyer un fichier dans le dossier de [publicationId], en UN
+    // SEUL get() — d'où la fonction : `let` n'est utilisable qu'à
+    // l'intérieur d'une fonction. Même construction que `peutCreer()` dans
+    // firestore.rules, et pour la même raison.
+    //
+    // Pas besoin de relire `users/{uid}` pour vérifier que l'appelant est un
+    // pro autorisé : il l'a déjà prouvé en créant la publication
+    // (firestore.rules, `peutCreer()` — unité dans ses `unitesAcces`, ou
+    // `peutDiffuserEtablissement` pour une portée établissement). Vérifier
+    // deux fois coûterait une lecture pour rien.
+    //
+    // `photos` encore vide = la publication n'a pas encore reçu ses photos.
+    // C'est ce qui traduit techniquement « uniquement à la création » : dès
+    // que les URLs sont enregistrées dans le document, plus aucun fichier ne
+    // peut être ajouté ni remplacé dans ce dossier. Un envoi interrompu
+    // reste réessayable (photos toujours vide) ; un ajout après coup est
+    // refusé.
+    //
+    // **Cette condition est le miroir exact de la troisième branche du
+    // `allow update` de `publications`.** Les deux verrous doivent rester
+    // identiques : si l'un se ferme sans l'autre, on obtient soit des
+    // fichiers envoyés que le document ne pourra jamais référencer, soit
+    // l'inverse.
+    function peutEnvoyer(publicationId) {
+      let p = publicationDoc(publicationId);
+      return p.auteurId == request.auth.uid
+          && p.get('photos', []).size() == 0;
+    }
+
+    match /publications/{publicationId}/{fichier} {
+
+      // LECTURE — même périmètre que la publication elle-même.
+      //
+      // Comme dans firestore.rules, `masquee` n'est PAS filtré ici : une
+      // publication masquée reste lisible par son périmètre, c'est la
+      // couche d'affichage qui décide qui la voit. L'auteur doit pouvoir
+      // constater ce qui a été retiré, pas le voir s'évanouir.
+      //
+      // Portée réelle de cette règle, à ne pas se raconter d'histoire :
+      // l'application enregistre l'URL de téléchargement dans le document
+      // publication et affiche les images depuis cette URL, qui porte son
+      // propre jeton et ne repasse donc pas par ici. Cette règle protège
+      // l'accès direct aux objets par leur chemin via le SDK — une seconde
+      // ligne de défense, pas le chemin nominal. Voir CLAUDE.md,
+      // « Publications étape 2 », pour ce que le masquage révoque
+      // réellement (rien) et l'échappatoire manuelle (régénération du jeton
+      // en console).
+      //
+      // Deux documents lus ici (l'utilisateur et la publication) : on est
+      // exactement au plafond, il n'y a pas de place pour un get() de plus.
+      allow read: if request.auth != null
+        && publicationDoc(publicationId).cibles.hasAny(accesLecture());
+
+      // ÉCRITURE — l'auteur de la publication, et seulement à la création.
+      // Voir `peutEnvoyer()` ci-dessus pour le raisonnement complet.
+      //
+      // Le nom de fichier est contraint à `0.jpg` … `4.jpg` : c'est ce qui
+      // borne le dossier à 5 objets. Les règles Storage ne savent pas
+      // compter les fichiers d'un dossier — contraindre le nom est le seul
+      // garde-fou possible à ce niveau.
+      //
+      // Taille et type imposés : la compression est côté client, donc
+      // contournable par un client modifié. 2 Mo laisse une marge
+      // confortable au-dessus des 200-600 Ko attendus tout en rendant
+      // impossible le dépôt d'une vidéo ou d'une photo brute de 8 Mo.
+      allow write: if request.auth != null
+        && peutEnvoyer(publicationId)
+        && fichier.matches('^[0-4]\\.jpg$')
+        && request.resource.size < 2 * 1024 * 1024
+        && request.resource.contentType == 'image/jpeg';
+
+      // Sans exception — cohérent avec `allow delete: if false` sur la
+      // collection `publications`. Le masquage est la seule forme de
+      // retrait (CLAUDE.md, « jamais de suppression physique »).
+      //
+      // Corollaire assumé : les fichiers d'une publication masquée restent
+      // en Storage. Aucun chemin légitime de l'application n'y mène, mais
+      // ce n'est pas une suppression.
+      allow delete: if false;
+    }
+  }
+}

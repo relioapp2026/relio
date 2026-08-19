@@ -122,7 +122,20 @@ class Publication {
   final String? masqueePar;
   final String? motifMasquage;
 
-  /// Étape 2 — pas encore écrit ni lu depuis Firestore.
+  /// URLs de téléchargement des photos, dans l'ordre d'affichage (étape 2).
+  ///
+  /// **Des URLs, pas des chemins Storage.** Le feed les passe directement à
+  /// `Image.network` : aucune évaluation de règle ni lecture Firestore
+  /// supplémentaire à chaque affichage, et le cache HTTP fait son travail.
+  /// L'alternative (enregistrer le chemin et redemander l'URL à chaque
+  /// affichage) coûterait deux lectures Firestore par photo et par
+  /// rafraîchissement du fil, sans rien protéger de plus — l'URL rendue porte
+  /// un jeton dans les deux cas.
+  ///
+  /// Écrites **une seule fois**, juste après la création, puis immuables : les
+  /// règles Firestore et Storage refusent toute écriture dès que la liste n'est
+  /// plus vide. Une publication ne gagne donc jamais de photos après coup, pas
+  /// plus qu'elle ne change de portée.
   final List<String> photos;
 
   /// Étape 3 — pas encore écrits ni lus depuis Firestore.
@@ -185,6 +198,7 @@ class Publication {
       dateMasquage: _date(data['dateMasquage']),
       masqueePar: data['masqueePar'] as String?,
       motifMasquage: data['motifMasquage'] as String?,
+      photos: _listeDeTextes(data['photos']),
     );
   }
 
@@ -210,6 +224,12 @@ class Publication {
       'dateMasquage': null,
       'masqueePar': null,
       'motifMasquage': null,
+      // Toujours vide à la création : les photos partent vers Storage une fois
+      // le document créé (c'est son id qui donne leur chemin), puis sont
+      // inscrites par une mise à jour dédiée. Poser explicitement la liste vide
+      // plutôt que d'omettre le champ rend le verrou des règles déterministe —
+      // « photos encore vide » est ce qui autorise cette unique mise à jour.
+      'photos': <String>[],
     };
   }
 
